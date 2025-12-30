@@ -12,6 +12,7 @@
 		A1000005000000000000001 /* GameEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000006000000000000001 /* GameEngine.swift */; };
 		A1000007000000000000001 /* OllamaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000008000000000000001 /* OllamaService.swift */; };
 		A1000009000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000010000000000000001 /* Assets.xcassets */; };
+		A1000027000000000000001 /* ColorTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000028000000000000001 /* ColorTheme.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -22,6 +23,7 @@
 		A1000008000000000000001 /* OllamaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaService.swift; sourceTree = "<group>"; };
 		A1000010000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1000012000000000000001 /* Blompie.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Blompie.entitlements; sourceTree = "<group>"; };
+		A1000028000000000000001 /* ColorTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorTheme.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -50,6 +52,7 @@
 				A1000004000000000000001 /* ContentView.swift */,
 				A1000006000000000000001 /* GameEngine.swift */,
 				A1000008000000000000001 /* OllamaService.swift */,
+				A1000028000000000000001 /* ColorTheme.swift */,
 				A1000010000000000000001 /* Assets.xcassets */,
 				A1000012000000000000001 /* Blompie.entitlements */,
 			);
@@ -137,6 +140,7 @@
 				A1000001000000000000001 /* BlompieApp.swift in Sources */,
 				A1000005000000000000001 /* GameEngine.swift in Sources */,
 				A1000007000000000000001 /* OllamaService.swift in Sources */,
+				A1000027000000000000001 /* ColorTheme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

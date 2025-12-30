@@ -48,7 +48,56 @@ enum OllamaError: Error, LocalizedError {
 
 class OllamaService {
     private let baseURL = "http://localhost:11434"
-    private let model = "mistral"
+    var model: String = "mistral"
+
+    func chatStreaming(messages: [OllamaMessage], onChunk: @escaping (String) -> Void) async throws {
+        guard let url = URL(string: "\(baseURL)/api/chat") else {
+            throw OllamaError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let chatRequest = OllamaChatRequest(
+            model: model,
+            messages: messages,
+            stream: true
+        )
+
+        request.httpBody = try JSONEncoder().encode(chatRequest)
+
+        do {
+            let (asyncBytes, response) = try await URLSession.shared.bytes(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw OllamaError.invalidResponse(statusCode: nil, body: nil)
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                throw OllamaError.invalidResponse(statusCode: httpResponse.statusCode, body: nil)
+            }
+
+            var buffer = ""
+            for try await byte in asyncBytes {
+                let char = Character(UnicodeScalar(byte))
+                buffer.append(char)
+
+                if char == "\n" {
+                    if let data = buffer.data(using: .utf8),
+                       let streamResponse = try? JSONDecoder().decode(OllamaChatResponse.self, from: data) {
+                        onChunk(streamResponse.message.content)
+                    }
+                    buffer = ""
+                }
+            }
+
+        } catch let error as OllamaError {
+            throw error
+        } catch {
+            throw OllamaError.networkError(error)
+        }
+    }
 
     func chat(messages: [OllamaMessage]) async throws -> String {
         guard let url = URL(string: "\(baseURL)/api/chat") else {

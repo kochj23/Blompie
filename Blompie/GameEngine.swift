@@ -24,6 +24,15 @@ struct GameState: Codable {
     var messages: [GameMessage]
     var conversationHistory: [OllamaMessage]
     var currentActions: [String]
+    var slotName: String
+    var savedDate: Date
+}
+
+struct SaveSlot: Identifiable, Codable {
+    let id: String
+    let name: String
+    let savedDate: Date
+    var messageCount: Int
 }
 
 @MainActor
@@ -31,9 +40,36 @@ class GameEngine: ObservableObject {
     @Published var messages: [GameMessage] = []
     @Published var currentActions: [String] = []
     @Published var isLoading: Bool = false
+    @Published var streamingText: String = ""
+    @Published var selectedModel: String = "mistral"
+    @Published var availableModels: [String] = ["mistral", "llama3.2", "llama3.1", "codellama", "phi"]
+    @Published var currentTheme: ColorTheme = ColorTheme.classicGreen
 
     private var conversationHistory: [OllamaMessage] = []
     private let ollamaService = OllamaService()
+
+    init() {
+        loadTheme()
+    }
+
+    func setTheme(_ theme: ColorTheme) {
+        currentTheme = theme
+        saveTheme()
+    }
+
+    private func saveTheme() {
+        if let encoded = try? JSONEncoder().encode(currentTheme) {
+            UserDefaults.standard.set(encoded, forKey: "BlompieColorTheme")
+        }
+    }
+
+    private func loadTheme() {
+        guard let data = UserDefaults.standard.data(forKey: "BlompieColorTheme"),
+              let theme = try? JSONDecoder().decode(ColorTheme.self, from: data) else {
+            return
+        }
+        currentTheme = theme
+    }
 
     private let systemPrompt = """
     You are the game master for a text-based adventure game in the style of Zork. Your role is to:
@@ -112,19 +148,31 @@ class GameEngine: ObservableObject {
     }
 
     private func sendToOllama() async {
+        ollamaService.model = selectedModel
+        streamingText = ""
+        var fullResponse = ""
+
         do {
-            let response = try await ollamaService.chat(messages: conversationHistory)
+            try await ollamaService.chatStreaming(messages: conversationHistory) { chunk in
+                Task { @MainActor in
+                    fullResponse += chunk
+                    self.streamingText = fullResponse
+                }
+            }
 
             conversationHistory.append(OllamaMessage(
                 role: "assistant",
-                content: response
+                content: fullResponse
             ))
 
-            // Parse response to extract narrative and actions
-            parseOllamaResponse(response)
+            streamingText = ""
 
-            saveGame()
+            // Parse response to extract narrative and actions
+            parseOllamaResponse(fullResponse)
+
+            saveGame(toSlot: "autosave")
         } catch {
+            streamingText = ""
             addMessage("=== ERROR ===")
             if let ollamaError = error as? OllamaError {
                 addMessage(ollamaError.errorDescription ?? error.localizedDescription)
@@ -134,7 +182,7 @@ class GameEngine: ObservableObject {
             addMessage("")
             addMessage("Troubleshooting:")
             addMessage("• Make sure Ollama is running: ollama serve")
-            addMessage("• Verify mistral model is installed: ollama pull mistral")
+            addMessage("• Verify \(selectedModel) model is installed: ollama pull \(selectedModel)")
             addMessage("• Check Ollama is on port 11434")
         }
     }
@@ -178,20 +226,23 @@ class GameEngine: ObservableObject {
 
     // MARK: - Save/Load
 
-    func saveGame() {
+    func saveGame(toSlot slotName: String = "autosave") {
         let state = GameState(
             messages: messages,
             conversationHistory: conversationHistory,
-            currentActions: currentActions
+            currentActions: currentActions,
+            slotName: slotName,
+            savedDate: Date()
         )
 
         if let encoded = try? JSONEncoder().encode(state) {
-            UserDefaults.standard.set(encoded, forKey: "BlompieGameState")
+            UserDefaults.standard.set(encoded, forKey: "BlompieGameState_\(slotName)")
+            updateSaveSlotMetadata(slotName: slotName, messageCount: messages.count)
         }
     }
 
-    func loadGame() {
-        guard let data = UserDefaults.standard.data(forKey: "BlompieGameState"),
+    func loadGame(fromSlot slotName: String = "autosave") {
+        guard let data = UserDefaults.standard.data(forKey: "BlompieGameState_\(slotName)"),
               let state = try? JSONDecoder().decode(GameState.self, from: data) else {
             return
         }
@@ -199,5 +250,48 @@ class GameEngine: ObservableObject {
         messages = state.messages
         conversationHistory = state.conversationHistory
         currentActions = state.currentActions
+    }
+
+    func getSaveSlots() -> [SaveSlot] {
+        guard let data = UserDefaults.standard.data(forKey: "BlompieSaveSlots"),
+              let slots = try? JSONDecoder().decode([SaveSlot].self, from: data) else {
+            return []
+        }
+        return slots.sorted { $0.savedDate > $1.savedDate }
+    }
+
+    private func updateSaveSlotMetadata(slotName: String, messageCount: Int) {
+        var slots = getSaveSlots()
+        slots.removeAll { $0.id == slotName }
+        slots.append(SaveSlot(id: slotName, name: slotName, savedDate: Date(), messageCount: messageCount))
+
+        if let encoded = try? JSONEncoder().encode(slots) {
+            UserDefaults.standard.set(encoded, forKey: "BlompieSaveSlots")
+        }
+    }
+
+    func deleteSaveSlot(_ slotName: String) {
+        UserDefaults.standard.removeObject(forKey: "BlompieGameState_\(slotName)")
+        var slots = getSaveSlots()
+        slots.removeAll { $0.id == slotName }
+        if let encoded = try? JSONEncoder().encode(slots) {
+            UserDefaults.standard.set(encoded, forKey: "BlompieSaveSlots")
+        }
+    }
+
+    // MARK: - Export
+
+    func exportTranscript() -> String {
+        var transcript = "=== BLOMPIE GAME TRANSCRIPT ===\n"
+        transcript += "Exported: \(Date().formatted())\n"
+        transcript += "Model: \(selectedModel)\n"
+        transcript += "Total Messages: \(messages.count)\n"
+        transcript += "\n" + String(repeating: "=", count: 50) + "\n\n"
+
+        for message in messages {
+            transcript += message.text + "\n"
+        }
+
+        return transcript
     }
 }

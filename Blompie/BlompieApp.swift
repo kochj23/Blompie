@@ -16,6 +16,17 @@ struct BlompieApp: App {
         .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(after: .appInfo) {
+                Button("Increase Font Size") {
+                    NotificationCenter.default.post(name: NSNotification.Name("IncreaseFontSize"), object: nil)
+                }
+                .keyboardShortcut("+", modifiers: [.control, .shift])
+
+                Button("Decrease Font Size") {
+                    NotificationCenter.default.post(name: NSNotification.Name("DecreaseFontSize"), object: nil)
+                }
+                .keyboardShortcut("-", modifiers: [.control, .shift])
+            }
         }
     }
 }

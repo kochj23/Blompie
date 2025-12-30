@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var gameEngine = GameEngine()
+    @AppStorage("fontSize") private var fontSize: Double = 14
 
     var body: some View {
         VStack(spacing: 0) {
@@ -18,7 +19,7 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(gameEngine.messages) { message in
                             Text(message.text)
-                                .font(.system(.body, design: .monospaced))
+                                .font(.system(size: fontSize, design: .monospaced))
                                 .foregroundColor(.green)
                                 .textSelection(.enabled)
                                 .id(message.id)
@@ -31,7 +32,7 @@ struct ContentView: View {
                                 Text("Loading...")
                                     .foregroundColor(.green.opacity(0.6))
                             }
-                            .font(.system(.body, design: .monospaced))
+                            .font(.system(size: fontSize, design: .monospaced))
                         }
                     }
                     .padding()
@@ -55,7 +56,7 @@ struct ContentView: View {
                             gameEngine.performAction(action)
                         }) {
                             Text(action)
-                                .font(.system(.body, design: .monospaced))
+                                .font(.system(size: fontSize, design: .monospaced))
                                 .foregroundColor(.green)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 8)
@@ -75,7 +76,7 @@ struct ContentView: View {
                     gameEngine.startNewGame()
                 }) {
                     Text("New Game")
-                        .font(.system(.body, design: .monospaced))
+                        .font(.system(size: fontSize, design: .monospaced))
                         .foregroundColor(.green)
                 }
                 .buttonStyle(.plain)
@@ -84,7 +85,7 @@ struct ContentView: View {
                     gameEngine.saveGame()
                 }) {
                     Text("Save")
-                        .font(.system(.body, design: .monospaced))
+                        .font(.system(size: fontSize, design: .monospaced))
                         .foregroundColor(.green)
                 }
                 .buttonStyle(.plain)
@@ -93,7 +94,7 @@ struct ContentView: View {
                     gameEngine.loadGame()
                 }) {
                     Text("Load")
-                        .font(.system(.body, design: .monospaced))
+                        .font(.system(size: fontSize, design: .monospaced))
                         .foregroundColor(.green)
                 }
                 .buttonStyle(.plain)
@@ -106,6 +107,16 @@ struct ContentView: View {
             gameEngine.loadGame()
             if gameEngine.messages.isEmpty {
                 gameEngine.startNewGame()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("IncreaseFontSize"))) { _ in
+            if fontSize < 36 {
+                fontSize += 2
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("DecreaseFontSize"))) { _ in
+            if fontSize > 8 {
+                fontSize -= 2
             }
         }
     }

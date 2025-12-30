@@ -170,11 +170,14 @@ struct ContentView: View {
 
                     Spacer()
 
-                    // Token/sec meter
+                    // Token/sec dial gauge
                     if gameEngine.lastTokensPerSecond > 0 {
-                        Text("\(String(format: "%.1f", gameEngine.lastTokensPerSecond)) tok/s")
-                            .font(.system(size: gameEngine.fontSize - 4, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.6))
+                        TokenMeterView(
+                            tokensPerSecond: gameEngine.lastTokensPerSecond,
+                            textColor: gameEngine.currentTheme.textColor.color,
+                            fontSize: gameEngine.fontSize
+                        )
+                        .padding(.horizontal, 8)
                     }
 
                     Button(action: {

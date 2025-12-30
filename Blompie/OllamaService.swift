@@ -29,6 +29,16 @@ struct OllamaChatResponse: Codable {
     let done: Bool
 }
 
+struct OllamaModel: Codable {
+    let name: String
+    let size: Int64?
+    let modified_at: String?
+}
+
+struct OllamaModelsResponse: Codable {
+    let models: [OllamaModel]
+}
+
 enum OllamaError: Error, LocalizedError {
     case invalidURL
     case networkError(Error)
@@ -57,6 +67,35 @@ class OllamaService {
     var model: String = "mistral"
     var temperature: Double = 0.7
     var maxTokens: Int? = nil
+
+    func fetchInstalledModels() async throws -> [String] {
+        guard let url = URL(string: "\(baseURL)/api/tags") else {
+            throw OllamaError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw OllamaError.invalidResponse(statusCode: nil, body: nil)
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                throw OllamaError.invalidResponse(statusCode: httpResponse.statusCode, body: nil)
+            }
+
+            let modelsResponse = try JSONDecoder().decode(OllamaModelsResponse.self, from: data)
+            return modelsResponse.models.map { $0.name }
+
+        } catch let error as OllamaError {
+            throw error
+        } catch {
+            throw OllamaError.networkError(error)
+        }
+    }
 
     func chatStreaming(messages: [OllamaMessage], onChunk: @escaping (String) -> Void) async throws {
         guard let url = URL(string: "\(baseURL)/api/chat") else {

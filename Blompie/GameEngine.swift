@@ -47,6 +47,20 @@ enum ToneStyle: String, Codable, CaseIterable {
     case whimsical = "Whimsical"
 }
 
+struct GameSnapshot: Codable {
+    let messages: [GameMessage]
+    let conversationHistory: [OllamaMessage]
+    let currentActions: [String]
+}
+
+struct Achievement: Identifiable, Codable {
+    let id: String
+    let title: String
+    let description: String
+    var isUnlocked: Bool
+    let unlockDate: Date?
+}
+
 @MainActor
 class GameEngine: ObservableObject {
     @Published var messages: [GameMessage] = []
@@ -54,7 +68,7 @@ class GameEngine: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var streamingText: String = ""
     @Published var selectedModel: String = "mistral"
-    @Published var availableModels: [String] = ["mistral", "llama3.2", "llama3.1", "codellama", "phi"]
+    @Published var availableModels: [String] = []
     @Published var currentTheme: ColorTheme = ColorTheme.classicGreen
 
     // Settings
@@ -65,11 +79,34 @@ class GameEngine: ObservableObject {
     @Published var toneStyle: ToneStyle = .balanced
     @Published var autoSaveEnabled: Bool = true
 
+    // Gameplay tracking
+    @Published var actionHistory: [String] = []
+    @Published var metNPCs: [String] = []
+    @Published var inventory: [String] = []
+    @Published var locationHistory: [String] = []
+    @Published var achievements: [Achievement] = []
+    @Published var showSidebar: Bool = false
+
+    var stateHistory: [GameSnapshot] = []
+
     private var conversationHistory: [OllamaMessage] = []
     private let ollamaService = OllamaService()
 
     init() {
         loadSettings()
+        initializeAchievements()
+        Task {
+            await refreshAvailableModels()
+        }
+    }
+
+    func refreshAvailableModels() async {
+        do {
+            let models = try await ollamaService.fetchInstalledModels()
+            availableModels = models.isEmpty ? ["mistral", "llama3.2", "llama3.1", "codellama", "phi"] : models
+        } catch {
+            availableModels = ["mistral", "llama3.2", "llama3.1", "codellama", "phi"]
+        }
     }
 
     func setTheme(_ theme: ColorTheme) {
@@ -143,6 +180,163 @@ class GameEngine: ObservableObject {
         currentActions = []
     }
 
+    // MARK: - Achievements
+
+    private func initializeAchievements() {
+        achievements = [
+            Achievement(id: "first_step", title: "First Steps", description: "Take your first action", isUnlocked: false, unlockDate: nil),
+            Achievement(id: "explorer", title: "Explorer", description: "Visit 5 different locations", isUnlocked: false, unlockDate: nil),
+            Achievement(id: "world_traveler", title: "World Traveler", description: "Visit 20 different locations", isUnlocked: false, unlockDate: nil),
+            Achievement(id: "social", title: "Social Butterfly", description: "Meet 5 NPCs", isUnlocked: false, unlockDate: nil),
+            Achievement(id: "diplomat", title: "Diplomat", description: "Meet 15 NPCs", isUnlocked: false, unlockDate: nil),
+            Achievement(id: "collector", title: "Collector", description: "Acquire 5 items", isUnlocked: false, unlockDate: nil),
+            Achievement(id: "hoarder", title: "Hoarder", description: "Acquire 15 items", isUnlocked: false, unlockDate: nil),
+            Achievement(id: "conversationalist", title: "Conversationalist", description: "Take 50 actions", isUnlocked: false, unlockDate: nil),
+            Achievement(id: "veteran", title: "Veteran Adventurer", description: "Take 200 actions", isUnlocked: false, unlockDate: nil),
+            Achievement(id: "trader", title: "Trader", description: "Complete 5 trades", isUnlocked: false, unlockDate: nil),
+        ]
+        loadAchievements()
+    }
+
+    private func checkAchievements() {
+        var changed = false
+
+        // First action
+        if !achievements[0].isUnlocked && actionHistory.count >= 1 {
+            unlockAchievement(id: "first_step")
+            changed = true
+        }
+
+        // Location achievements
+        if !achievements[1].isUnlocked && locationHistory.count >= 5 {
+            unlockAchievement(id: "explorer")
+            changed = true
+        }
+        if !achievements[2].isUnlocked && locationHistory.count >= 20 {
+            unlockAchievement(id: "world_traveler")
+            changed = true
+        }
+
+        // NPC achievements
+        if !achievements[3].isUnlocked && metNPCs.count >= 5 {
+            unlockAchievement(id: "social")
+            changed = true
+        }
+        if !achievements[4].isUnlocked && metNPCs.count >= 15 {
+            unlockAchievement(id: "diplomat")
+            changed = true
+        }
+
+        // Inventory achievements
+        if !achievements[5].isUnlocked && inventory.count >= 5 {
+            unlockAchievement(id: "collector")
+            changed = true
+        }
+        if !achievements[6].isUnlocked && inventory.count >= 15 {
+            unlockAchievement(id: "hoarder")
+            changed = true
+        }
+
+        // Action count achievements
+        let totalActions = actionHistory.count
+        if !achievements[7].isUnlocked && totalActions >= 50 {
+            unlockAchievement(id: "conversationalist")
+            changed = true
+        }
+        if !achievements[8].isUnlocked && totalActions >= 200 {
+            unlockAchievement(id: "veteran")
+            changed = true
+        }
+
+        if changed {
+            saveAchievements()
+        }
+    }
+
+    private func unlockAchievement(id: String) {
+        if let index = achievements.firstIndex(where: { $0.id == id }) {
+            achievements[index] = Achievement(
+                id: achievements[index].id,
+                title: achievements[index].title,
+                description: achievements[index].description,
+                isUnlocked: true,
+                unlockDate: Date()
+            )
+            addMessage("")
+            addMessage("🏆 Achievement Unlocked: \(achievements[index].title)")
+            addMessage("")
+        }
+    }
+
+    private func saveAchievements() {
+        if let encoded = try? JSONEncoder().encode(achievements) {
+            UserDefaults.standard.set(encoded, forKey: "BlompieAchievements")
+        }
+    }
+
+    private func loadAchievements() {
+        guard let data = UserDefaults.standard.data(forKey: "BlompieAchievements"),
+              let saved = try? JSONDecoder().decode([Achievement].self, from: data) else {
+            return
+        }
+        achievements = saved
+    }
+
+    // MARK: - Parsing & Tracking
+
+    private func parseAndTrackGameElements(_ response: String) {
+        let lowercased = response.lowercased()
+
+        // Track NPCs (look for character names and interactions)
+        let npcIndicators = ["meets", "encounter", "greet", "merchant", "traveler", "guide", "sprite", "elder", "adventurer", "wizard", "gnome", "shopkeeper"]
+        for indicator in npcIndicators {
+            if lowercased.contains(indicator) {
+                // Extract potential NPC name from context
+                let words = response.components(separatedBy: .whitespaces)
+                for (index, word) in words.enumerated() {
+                    if word.lowercased() == indicator && index + 1 < words.count {
+                        let potentialName = words[index + 1].trimmingCharacters(in: .punctuationCharacters)
+                        if potentialName.first?.isUppercase == true && !metNPCs.contains(potentialName) {
+                            metNPCs.append(potentialName)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Track inventory (look for "you pick up", "you take", "you receive")
+        let inventoryPhrases = ["pick up", "take the", "receive", "acquire", "find a", "grab"]
+        for phrase in inventoryPhrases {
+            if lowercased.contains(phrase) {
+                if let range = lowercased.range(of: phrase) {
+                    let afterPhrase = String(response[range.upperBound...])
+                    let words = afterPhrase.components(separatedBy: .whitespaces).prefix(3)
+                    let item = words.joined(separator: " ").trimmingCharacters(in: .punctuationCharacters)
+                    if !item.isEmpty && !inventory.contains(item) {
+                        inventory.append(item)
+                    }
+                }
+            }
+        }
+
+        // Track locations (look for "you enter", "you arrive", "you're in")
+        let locationPhrases = ["enter", "arrive at", "you're in", "standing in", "you find yourself"]
+        for phrase in locationPhrases {
+            if lowercased.contains(phrase) {
+                if let range = lowercased.range(of: phrase) {
+                    let afterPhrase = String(response[range.upperBound...])
+                    let words = afterPhrase.components(separatedBy: .whitespaces).prefix(4)
+                    let location = words.joined(separator: " ").trimmingCharacters(in: .punctuationCharacters)
+                    if !location.isEmpty && !locationHistory.contains(location) {
+                        locationHistory.append(location)
+                    }
+                }
+            }
+        }
+
+        checkAchievements()
+    }
+
     private func generateSystemPrompt() -> String {
         let detailInstruction: String
         switch detailLevel {
@@ -202,6 +396,11 @@ class GameEngine: ObservableObject {
         messages = []
         conversationHistory = []
         currentActions = []
+        actionHistory = []
+        metNPCs = []
+        inventory = []
+        locationHistory = []
+        stateHistory = []
 
         addMessage("=== BLOMPIE ===")
         addMessage("A Text Adventure Powered by Ollama")
@@ -215,11 +414,47 @@ class GameEngine: ObservableObject {
     }
 
     func performAction(_ action: String) {
+        // Save state before action for undo
+        saveStateSnapshot()
+
+        // Track action
+        actionHistory.append(action)
+        if actionHistory.count > 10 {
+            actionHistory.removeFirst()
+        }
+
         addMessage("> \(action)")
         addMessage("")
 
         Task {
             await sendMessageToOllama(action)
+        }
+    }
+
+    func undoLastAction() {
+        guard !stateHistory.isEmpty else { return }
+
+        let snapshot = stateHistory.removeLast()
+        messages = snapshot.messages
+        conversationHistory = snapshot.conversationHistory
+        currentActions = snapshot.currentActions
+
+        if !actionHistory.isEmpty {
+            actionHistory.removeLast()
+        }
+    }
+
+    private func saveStateSnapshot() {
+        let snapshot = GameSnapshot(
+            messages: messages,
+            conversationHistory: conversationHistory,
+            currentActions: currentActions
+        )
+        stateHistory.append(snapshot)
+
+        // Keep last 20 snapshots
+        if stateHistory.count > 20 {
+            stateHistory.removeFirst()
         }
     }
 
@@ -361,6 +596,9 @@ class GameEngine: ObservableObject {
         if currentActions.isEmpty {
             currentActions = ["Look around", "Continue", "Go back", "Examine surroundings"]
         }
+
+        // Track NPCs, inventory, locations, and check achievements
+        parseAndTrackGameElements(response)
     }
 
     private func addMessage(_ text: String) {

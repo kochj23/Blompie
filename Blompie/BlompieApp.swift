@@ -12,8 +12,11 @@ struct BlompieApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .frame(minWidth: 800, minHeight: 600)
         }
         .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+        .defaultSize(width: 1000, height: 700)
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandGroup(after: .appInfo) {

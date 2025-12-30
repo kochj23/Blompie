@@ -412,13 +412,26 @@ class GameEngine: ObservableObject {
         - Wise elders with stories and knowledge
         - Fellow explorers with their own quests
 
-        STYLE: \(detailInstruction) \(toneInstruction)
+        CRITICAL - ACTIONS MUST PROGRESS THE STORY:
+        • When a player takes an action, something NEW must happen
+        • If they "step through door" → they enter a DIFFERENT location with NEW elements
+        • If they "read journal" → they learn SPECIFIC information or trigger an event
+        • If they "talk to NPC" → the NPC responds with DIALOGUE and actions
+        • NEVER re-describe the same scene with different metaphors
+        • PROGRESS IS MANDATORY - each action moves the story forward
+        • Avoid excessive metaphors - be concrete, clear, and actionable
+        • Make EVENTS happen: discoveries, meetings, changes, revelations
+
+        BAD (stuck): "The door glows. The crystal pulses. You sense mystery."
+        GOOD (progress): "You step through. You're now in a forest clearing. An old wizard sits by a fire."
+
+        STYLE: \(detailInstruction) \(toneInstruction) But ALWAYS prioritize story progression over atmosphere.
 
         CRITICAL FORMAT REQUIREMENT:
         Always end your response with a line containing ONLY:
         ACTIONS: action1 | action2 | action3 | action4
 
-        Make actions specific and interesting. Prioritize interactive actions over passive examination.
+        Make actions specific and interesting. Prioritize interactive actions over passive examination. MAKE THINGS HAPPEN.
         """
     }
 
@@ -600,6 +613,7 @@ class GameEngine: ObservableObject {
             "You are the game master",
             "Your role is to:",
             "CRITICAL FORMAT REQUIREMENT",
+            "CRITICAL - ACTIONS MUST",
             "Example response format:",
             "Always end your response",
             "Keep descriptions concise",
@@ -616,7 +630,14 @@ class GameEngine: ObservableObject {
             "Friendly travelers with useful",
             "Eccentric shopkeepers",
             "Magical creatures who speak",
-            "Prioritize interactive actions"
+            "Prioritize interactive actions",
+            "When a player takes an action",
+            "PROGRESS IS MANDATORY",
+            "NEVER re-describe the same",
+            "BAD (stuck):",
+            "GOOD (progress):",
+            "MAKE THINGS HAPPEN",
+            "But ALWAYS prioritize story"
         ]
 
         for line in lines {

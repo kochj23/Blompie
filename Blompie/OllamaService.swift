@@ -16,6 +16,12 @@ struct OllamaChatRequest: Codable {
     let model: String
     let messages: [OllamaMessage]
     let stream: Bool
+    let options: OllamaOptions?
+}
+
+struct OllamaOptions: Codable {
+    let temperature: Double?
+    let num_predict: Int?
 }
 
 struct OllamaChatResponse: Codable {
@@ -49,6 +55,8 @@ enum OllamaError: Error, LocalizedError {
 class OllamaService {
     private let baseURL = "http://localhost:11434"
     var model: String = "mistral"
+    var temperature: Double = 0.7
+    var maxTokens: Int? = nil
 
     func chatStreaming(messages: [OllamaMessage], onChunk: @escaping (String) -> Void) async throws {
         guard let url = URL(string: "\(baseURL)/api/chat") else {
@@ -62,7 +70,8 @@ class OllamaService {
         let chatRequest = OllamaChatRequest(
             model: model,
             messages: messages,
-            stream: true
+            stream: true,
+            options: OllamaOptions(temperature: temperature, num_predict: maxTokens)
         )
 
         request.httpBody = try JSONEncoder().encode(chatRequest)
@@ -111,7 +120,8 @@ class OllamaService {
         let chatRequest = OllamaChatRequest(
             model: model,
             messages: messages,
-            stream: false
+            stream: false,
+            options: OllamaOptions(temperature: temperature, num_predict: maxTokens)
         )
 
         request.httpBody = try JSONEncoder().encode(chatRequest)

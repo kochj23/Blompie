@@ -35,6 +35,18 @@ struct SaveSlot: Identifiable, Codable {
     var messageCount: Int
 }
 
+enum DetailLevel: String, Codable, CaseIterable {
+    case brief = "Brief"
+    case normal = "Normal"
+    case detailed = "Detailed"
+}
+
+enum ToneStyle: String, Codable, CaseIterable {
+    case serious = "Serious"
+    case balanced = "Balanced"
+    case whimsical = "Whimsical"
+}
+
 @MainActor
 class GameEngine: ObservableObject {
     @Published var messages: [GameMessage] = []
@@ -45,67 +57,146 @@ class GameEngine: ObservableObject {
     @Published var availableModels: [String] = ["mistral", "llama3.2", "llama3.1", "codellama", "phi"]
     @Published var currentTheme: ColorTheme = ColorTheme.classicGreen
 
+    // Settings
+    @Published var fontSize: Double = 14
+    @Published var streamingEnabled: Bool = true
+    @Published var temperature: Double = 0.7
+    @Published var detailLevel: DetailLevel = .normal
+    @Published var toneStyle: ToneStyle = .balanced
+    @Published var autoSaveEnabled: Bool = true
+
     private var conversationHistory: [OllamaMessage] = []
     private let ollamaService = OllamaService()
 
     init() {
-        loadTheme()
+        loadSettings()
     }
 
     func setTheme(_ theme: ColorTheme) {
         currentTheme = theme
-        saveTheme()
+        saveSettings()
     }
 
-    private func saveTheme() {
+    func saveSettings() {
+        UserDefaults.standard.set(fontSize, forKey: "BlompieFontSize")
+        UserDefaults.standard.set(streamingEnabled, forKey: "BlompieStreamingEnabled")
+        UserDefaults.standard.set(temperature, forKey: "BlompieTemperature")
+        UserDefaults.standard.set(detailLevel.rawValue, forKey: "BlompieDetailLevel")
+        UserDefaults.standard.set(toneStyle.rawValue, forKey: "BlompieToneStyle")
+        UserDefaults.standard.set(autoSaveEnabled, forKey: "BlompieAutoSaveEnabled")
+        UserDefaults.standard.set(selectedModel, forKey: "BlompieSelectedModel")
+
         if let encoded = try? JSONEncoder().encode(currentTheme) {
             UserDefaults.standard.set(encoded, forKey: "BlompieColorTheme")
         }
     }
 
-    private func loadTheme() {
-        guard let data = UserDefaults.standard.data(forKey: "BlompieColorTheme"),
-              let theme = try? JSONDecoder().decode(ColorTheme.self, from: data) else {
-            return
+    private func loadSettings() {
+        fontSize = UserDefaults.standard.double(forKey: "BlompieFontSize")
+        if fontSize == 0 { fontSize = 14 }
+
+        streamingEnabled = UserDefaults.standard.object(forKey: "BlompieStreamingEnabled") as? Bool ?? true
+        temperature = UserDefaults.standard.double(forKey: "BlompieTemperature")
+        if temperature == 0 { temperature = 0.7 }
+
+        if let detailStr = UserDefaults.standard.string(forKey: "BlompieDetailLevel"),
+           let detail = DetailLevel(rawValue: detailStr) {
+            detailLevel = detail
         }
-        currentTheme = theme
+
+        if let toneStr = UserDefaults.standard.string(forKey: "BlompieToneStyle"),
+           let tone = ToneStyle(rawValue: toneStr) {
+            toneStyle = tone
+        }
+
+        autoSaveEnabled = UserDefaults.standard.object(forKey: "BlompieAutoSaveEnabled") as? Bool ?? true
+
+        if let model = UserDefaults.standard.string(forKey: "BlompieSelectedModel") {
+            selectedModel = model
+        }
+
+        if let data = UserDefaults.standard.data(forKey: "BlompieColorTheme"),
+           let theme = try? JSONDecoder().decode(ColorTheme.self, from: data) {
+            currentTheme = theme
+        }
     }
 
-    private let systemPrompt = """
-    You are the game master for a text-based adventure game in the style of Zork. Your role is to:
+    func resetSettings() {
+        fontSize = 14
+        streamingEnabled = true
+        temperature = 0.7
+        detailLevel = .normal
+        toneStyle = .balanced
+        autoSaveEnabled = true
+        selectedModel = "mistral"
+        currentTheme = ColorTheme.classicGreen
+        saveSettings()
+    }
 
-    1. Create an immersive, mysterious world with interesting locations, puzzles, and discoveries
-    2. Populate the world with NPCs, creatures, and other beings the player can interact with
-    3. Include friendly characters to talk to, trade with, or help (not everything is hostile!)
-    4. Add mysterious beings with their own agendas - some helpful, some mischievous, none deadly
-    5. Create opportunities for dialogue, trading items, solving problems together, and making allies
-    6. Present 2-4 possible actions focusing on INTERACTION over examination
-    7. Track inventory, location, relationships, and game state implicitly
-    8. Make the world feel alive with beings who have personality, quirks, and goals
-    9. Avoid deadly combat - conflicts should be puzzles, negotiations, or clever escapes
-    10. Vary the gameplay: talking, trading, following, helping, questioning, befriending
+    func deleteAllSaves() {
+        let slots = getSaveSlots()
+        for slot in slots {
+            deleteSaveSlot(slot.id)
+        }
+        messages = []
+        conversationHistory = []
+        currentActions = []
+    }
 
-    IMPORTANT: Balance exploration with social interaction. Not every scene needs an NPC, but the player should regularly encounter other beings. These can be:
-    - Friendly travelers with useful information or items to trade
-    - Eccentric shopkeepers or merchants
-    - Magical creatures who speak in riddles
-    - Lost adventurers who need help
-    - Mysterious guides offering cryptic advice
-    - Mischievous sprites playing harmless tricks
-    - Wise elders with stories and knowledge
-    - Fellow explorers with their own quests
+    private func generateSystemPrompt() -> String {
+        let detailInstruction: String
+        switch detailLevel {
+        case .brief:
+            detailInstruction = "Keep descriptions VERY brief (1-2 sentences maximum). Focus on action over description."
+        case .normal:
+            detailInstruction = "Keep descriptions concise but evocative (2-4 sentences)."
+        case .detailed:
+            detailInstruction = "Provide rich, detailed descriptions (4-6 sentences). Paint a vivid picture with sensory details."
+        }
 
-    CRITICAL FORMAT REQUIREMENT:
-    Always end your response with a line containing ONLY:
-    ACTIONS: action1 | action2 | action3 | action4
+        let toneInstruction: String
+        switch toneStyle {
+        case .serious:
+            toneInstruction = "Maintain a serious, dramatic tone. The world is mysterious and consequential."
+        case .balanced:
+            toneInstruction = "Balance seriousness with occasional lightness. The world can be both mysterious and charming."
+        case .whimsical:
+            toneInstruction = "Embrace whimsy and humor. The world is playful, quirky, and delightfully strange."
+        }
 
-    Example response format:
-    A cheerful gnome merchant sits by a crackling fire, arranging colorful potions on a velvet cloth. He looks up with a bright smile. "Ah, a traveler! Care to see my wares? Or perhaps you have something interesting to trade?" His eyes sparkle with curiosity as he gestures to an empty seat beside him.
+        return """
+        You are the game master for a text-based adventure game in the style of Zork. Your role is to:
 
-    ACTIONS: Ask about the potions | Show him your items | Sit and chat by the fire | Continue down the path
+        1. Create an immersive, mysterious world with interesting locations, puzzles, and discoveries
+        2. Populate the world with NPCs, creatures, and other beings the player can interact with
+        3. Include friendly characters to talk to, trade with, or help (not everything is hostile!)
+        4. Add mysterious beings with their own agendas - some helpful, some mischievous, none deadly
+        5. Create opportunities for dialogue, trading items, solving problems together, and making allies
+        6. Present 2-4 possible actions focusing on INTERACTION over examination
+        7. Track inventory, location, relationships, and game state implicitly
+        8. Make the world feel alive with beings who have personality, quirks, and goals
+        9. Avoid deadly combat - conflicts should be puzzles, negotiations, or clever escapes
+        10. Vary the gameplay: talking, trading, following, helping, questioning, befriending
 
-    Keep descriptions concise but evocative (2-4 sentences). Make actions specific and interesting. Prioritize interactive actions over passive examination.
-    """
+        IMPORTANT: Balance exploration with social interaction. Not every scene needs an NPC, but the player should regularly encounter other beings. These can be:
+        - Friendly travelers with useful information or items to trade
+        - Eccentric shopkeepers or merchants
+        - Magical creatures who speak in riddles
+        - Lost adventurers who need help
+        - Mysterious guides offering cryptic advice
+        - Mischievous sprites playing harmless tricks
+        - Wise elders with stories and knowledge
+        - Fellow explorers with their own quests
+
+        STYLE: \(detailInstruction) \(toneInstruction)
+
+        CRITICAL FORMAT REQUIREMENT:
+        Always end your response with a line containing ONLY:
+        ACTIONS: action1 | action2 | action3 | action4
+
+        Make actions specific and interesting. Prioritize interactive actions over passive examination.
+        """
+    }
 
     func startNewGame() {
         messages = []
@@ -137,7 +228,7 @@ class GameEngine: ObservableObject {
 
         conversationHistory.append(OllamaMessage(
             role: "system",
-            content: systemPrompt
+            content: generateSystemPrompt()
         ))
 
         conversationHistory.append(OllamaMessage(
@@ -163,15 +254,20 @@ class GameEngine: ObservableObject {
 
     private func sendToOllama() async {
         ollamaService.model = selectedModel
+        ollamaService.temperature = temperature
         streamingText = ""
         var fullResponse = ""
 
         do {
-            try await ollamaService.chatStreaming(messages: conversationHistory) { chunk in
-                Task { @MainActor in
-                    fullResponse += chunk
-                    self.streamingText = fullResponse
+            if streamingEnabled {
+                try await ollamaService.chatStreaming(messages: conversationHistory) { chunk in
+                    Task { @MainActor in
+                        fullResponse += chunk
+                        self.streamingText = fullResponse
+                    }
                 }
+            } else {
+                fullResponse = try await ollamaService.chat(messages: conversationHistory)
             }
 
             conversationHistory.append(OllamaMessage(
@@ -184,7 +280,9 @@ class GameEngine: ObservableObject {
             // Parse response to extract narrative and actions
             parseOllamaResponse(fullResponse)
 
-            saveGame(toSlot: "autosave")
+            if autoSaveEnabled {
+                saveGame(toSlot: "autosave")
+            }
         } catch {
             streamingText = ""
             addMessage("=== ERROR ===")

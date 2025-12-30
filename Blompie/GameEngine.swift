@@ -427,9 +427,15 @@ class GameEngine: ObservableObject {
 
         STYLE: \(detailInstruction) \(toneInstruction) But ALWAYS prioritize story progression over atmosphere.
 
-        CRITICAL FORMAT REQUIREMENT:
+        CRITICAL FORMAT REQUIREMENT - YOU MUST FOLLOW THIS EXACTLY:
         Always end your response with a line containing ONLY:
         ACTIONS: action1 | action2 | action3 | action4
+
+        DO NOT use numbered lists. DO NOT use markdown bold. Use ONLY the pipe-separated format above.
+
+        CORRECT: "ACTIONS: Open the door | Talk to the merchant | Pick up the sword | Go north"
+        WRONG: "1. Open the door 2. Talk to merchant" (numbered list not allowed)
+        WRONG: "**Open the door**" (markdown not allowed)
 
         Make actions specific and interesting. Prioritize interactive actions over passive examination. MAKE THINGS HAPPEN.
         """
@@ -640,20 +646,41 @@ class GameEngine: ObservableObject {
             "But ALWAYS prioritize story"
         ]
 
+        var inActionsList = false
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
             if trimmed.hasPrefix("ACTIONS:") {
-                // Extract actions
+                // Extract actions from pipe-separated format
                 let actionsString = trimmed.replacingOccurrences(of: "ACTIONS:", with: "").trimmingCharacters(in: .whitespaces)
                 actions = actionsString.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+                inActionsList = false
+            } else if trimmed.range(of: "^\\d+\\.\\s*\\*\\*", options: .regularExpression) != nil {
+                // Fallback: Parse numbered list with bold actions (e.g., "1. **Action** (description)")
+                inActionsList = true
+                // Extract text between ** markers
+                let components = trimmed.components(separatedBy: "**")
+                if components.count >= 3 {
+                    let action = components[1].trimmingCharacters(in: .whitespaces)
+                    if !action.isEmpty {
+                        actions.append(action)
+                    }
+                }
+            } else if inActionsList && trimmed.range(of: "^\\d+\\.", options: .regularExpression) != nil {
+                // Continue parsing numbered actions without bold
+                let withoutNumber = trimmed.replacingOccurrences(of: "^\\d+\\.\\s*", with: "", options: .regularExpression)
+                let action = withoutNumber.components(separatedBy: "(").first?.trimmingCharacters(in: .whitespaces) ?? withoutNumber
+                if !action.isEmpty {
+                    actions.append(action)
+                }
             } else if !trimmed.isEmpty {
                 // Filter out system prompt text
                 let isSystemPrompt = systemPromptPhrases.contains { phrase in
                     trimmed.contains(phrase)
                 }
 
-                if !isSystemPrompt {
+                // Don't add action list items to narrative
+                if !isSystemPrompt && !inActionsList {
                     narrativeLines.append(line)
                 }
             }

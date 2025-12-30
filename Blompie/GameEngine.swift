@@ -192,6 +192,22 @@ class GameEngine: ObservableObject {
         var narrativeLines: [String] = []
         var actions: [String] = []
 
+        // System prompt keywords to filter out
+        let systemPromptPhrases = [
+            "You are the game master",
+            "Your role is to:",
+            "CRITICAL FORMAT REQUIREMENT",
+            "Example response format:",
+            "Always end your response",
+            "Keep descriptions concise",
+            "Create an immersive",
+            "Respond to player actions",
+            "Present 2-4 possible actions",
+            "Be creative and surprising",
+            "Track inventory",
+            "Make the world feel alive"
+        ]
+
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
@@ -200,7 +216,14 @@ class GameEngine: ObservableObject {
                 let actionsString = trimmed.replacingOccurrences(of: "ACTIONS:", with: "").trimmingCharacters(in: .whitespaces)
                 actions = actionsString.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
             } else if !trimmed.isEmpty {
-                narrativeLines.append(line)
+                // Filter out system prompt text
+                let isSystemPrompt = systemPromptPhrases.contains { phrase in
+                    trimmed.contains(phrase)
+                }
+
+                if !isSystemPrompt {
+                    narrativeLines.append(line)
+                }
             }
         }
 

@@ -86,8 +86,12 @@ class GameEngine: ObservableObject {
     @Published var locationHistory: [String] = []
     @Published var achievements: [Achievement] = []
     @Published var showSidebar: Bool = false
+    @Published var lastTokensPerSecond: Double = 0.0
+    @Published var randomModelMode: Bool = false
+    @Published var actionsUntilModelSwitch: Int = 5
 
     var stateHistory: [GameSnapshot] = []
+    private var actionsSinceModelSwitch: Int = 0
 
     private var conversationHistory: [OllamaMessage] = []
     private let ollamaService = OllamaService()
@@ -122,6 +126,8 @@ class GameEngine: ObservableObject {
         UserDefaults.standard.set(toneStyle.rawValue, forKey: "BlompieToneStyle")
         UserDefaults.standard.set(autoSaveEnabled, forKey: "BlompieAutoSaveEnabled")
         UserDefaults.standard.set(selectedModel, forKey: "BlompieSelectedModel")
+        UserDefaults.standard.set(randomModelMode, forKey: "BlompieRandomModelMode")
+        UserDefaults.standard.set(actionsUntilModelSwitch, forKey: "BlompieActionsUntilModelSwitch")
 
         if let encoded = try? JSONEncoder().encode(currentTheme) {
             UserDefaults.standard.set(encoded, forKey: "BlompieColorTheme")
@@ -147,6 +153,12 @@ class GameEngine: ObservableObject {
         }
 
         autoSaveEnabled = UserDefaults.standard.object(forKey: "BlompieAutoSaveEnabled") as? Bool ?? true
+        randomModelMode = UserDefaults.standard.object(forKey: "BlompieRandomModelMode") as? Bool ?? false
+
+        let savedSwitchCount = UserDefaults.standard.integer(forKey: "BlompieActionsUntilModelSwitch")
+        if savedSwitchCount > 0 {
+            actionsUntilModelSwitch = savedSwitchCount
+        }
 
         if let model = UserDefaults.standard.string(forKey: "BlompieSelectedModel") {
             selectedModel = model
@@ -165,9 +177,27 @@ class GameEngine: ObservableObject {
         detailLevel = .normal
         toneStyle = .balanced
         autoSaveEnabled = true
+        randomModelMode = false
+        actionsUntilModelSwitch = 5
         selectedModel = "mistral"
         currentTheme = ColorTheme.classicGreen
         saveSettings()
+    }
+
+    // MARK: - Stats
+
+    func getStats() -> [String: String] {
+        return [
+            "Total Actions": "\(actionHistory.count)",
+            "NPCs Met": "\(metNPCs.count)",
+            "Items Collected": "\(inventory.count)",
+            "Locations Visited": "\(locationHistory.count)",
+            "Achievements": "\(achievements.filter { $0.isUnlocked }.count)/\(achievements.count)",
+            "Current Model": selectedModel,
+            "Last Token/sec": lastTokensPerSecond > 0 ? String(format: "%.1f", lastTokensPerSecond) : "N/A",
+            "Saves": "\(getSaveSlots().count)",
+            "Messages": "\(messages.count)"
+        ]
     }
 
     func deleteAllSaves() {
@@ -423,11 +453,31 @@ class GameEngine: ObservableObject {
             actionHistory.removeFirst()
         }
 
+        // Random model switching
+        if randomModelMode {
+            actionsSinceModelSwitch += 1
+            if actionsSinceModelSwitch >= actionsUntilModelSwitch {
+                switchToRandomModel()
+                actionsSinceModelSwitch = 0
+            }
+        }
+
         addMessage("> \(action)")
         addMessage("")
 
         Task {
             await sendMessageToOllama(action)
+        }
+    }
+
+    private func switchToRandomModel() {
+        guard !availableModels.isEmpty else { return }
+        let otherModels = availableModels.filter { $0 != selectedModel }
+        if let randomModel = otherModels.randomElement() {
+            selectedModel = randomModel
+            addMessage("")
+            addMessage("🔀 Switched to model: \(randomModel)")
+            addMessage("")
         }
     }
 
@@ -499,6 +549,12 @@ class GameEngine: ObservableObject {
                     Task { @MainActor in
                         fullResponse += chunk
                         self.streamingText = fullResponse
+                    }
+                } onComplete: { tokensPerSecond in
+                    Task { @MainActor in
+                        if let tps = tokensPerSecond {
+                            self.lastTokensPerSecond = tps
+                        }
                     }
                 }
             } else {

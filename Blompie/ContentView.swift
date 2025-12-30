@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var showLoadDialog = false
     @State private var showSettings = false
     @State private var showAchievements = false
+    @State private var showStats = false
     @Environment(\.colorScheme) var systemColorScheme
 
     var body: some View {
@@ -169,6 +170,22 @@ struct ContentView: View {
 
                     Spacer()
 
+                    // Token/sec meter
+                    if gameEngine.lastTokensPerSecond > 0 {
+                        Text("\(String(format: "%.1f", gameEngine.lastTokensPerSecond)) tok/s")
+                            .font(.system(size: gameEngine.fontSize - 4, design: .monospaced))
+                            .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.6))
+                    }
+
+                    Button(action: {
+                        showStats = true
+                    }) {
+                        Text("📊")
+                            .font(.system(size: gameEngine.fontSize, design: .monospaced))
+                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                    }
+                    .buttonStyle(.plain)
+
                     Button(action: {
                         showAchievements = true
                     }) {
@@ -236,6 +253,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showAchievements) {
             AchievementsView(gameEngine: gameEngine, isPresented: $showAchievements)
+        }
+        .sheet(isPresented: $showStats) {
+            StatsView(gameEngine: gameEngine, isPresented: $showStats)
         }
         .preferredColorScheme(gameEngine.currentTheme.id == "paper" ? .light : .dark)
     }
@@ -394,6 +414,127 @@ struct AchievementsView: View {
         .padding(30)
         .frame(width: 500)
         .background(gameEngine.currentTheme.backgroundColor.color)
+    }
+}
+
+// MARK: - Stats View
+
+struct StatsView: View {
+    @ObservedObject var gameEngine: GameEngine
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Game Statistics")
+                .font(.system(.title, design: .monospaced))
+                .foregroundColor(gameEngine.currentTheme.textColor.color)
+
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Performance Stats
+                    StatSection(title: "Performance", textColor: gameEngine.currentTheme.textColor.color) {
+                        StatRow(label: "Token/sec", value: gameEngine.lastTokensPerSecond > 0 ? String(format: "%.1f", gameEngine.lastTokensPerSecond) : "N/A", textColor: gameEngine.currentTheme.textColor.color)
+                        StatRow(label: "Model", value: gameEngine.selectedModel, textColor: gameEngine.currentTheme.textColor.color)
+                        StatRow(label: "Random Mode", value: gameEngine.randomModelMode ? "Enabled" : "Disabled", textColor: gameEngine.currentTheme.textColor.color)
+                    }
+
+                    // Gameplay Stats
+                    StatSection(title: "Gameplay", textColor: gameEngine.currentTheme.textColor.color) {
+                        StatRow(label: "Total Actions", value: "\(gameEngine.actionHistory.count)", textColor: gameEngine.currentTheme.textColor.color)
+                        StatRow(label: "Total Messages", value: "\(gameEngine.messages.count)", textColor: gameEngine.currentTheme.textColor.color)
+                        StatRow(label: "NPCs Met", value: "\(gameEngine.metNPCs.count)", textColor: gameEngine.currentTheme.textColor.color)
+                        StatRow(label: "Items Collected", value: "\(gameEngine.inventory.count)", textColor: gameEngine.currentTheme.textColor.color)
+                        StatRow(label: "Locations Visited", value: "\(gameEngine.locationHistory.count)", textColor: gameEngine.currentTheme.textColor.color)
+                    }
+
+                    // Achievements Summary
+                    StatSection(title: "Achievements", textColor: gameEngine.currentTheme.textColor.color) {
+                        StatRow(label: "Unlocked", value: "\(gameEngine.achievements.filter { $0.isUnlocked }.count)/\(gameEngine.achievements.count)", textColor: gameEngine.currentTheme.textColor.color)
+                        StatRow(label: "Progress", value: String(format: "%.0f%%", Double(gameEngine.achievements.filter { $0.isUnlocked }.count) / Double(gameEngine.achievements.count) * 100), textColor: gameEngine.currentTheme.textColor.color)
+                    }
+
+                    // Session Info
+                    StatSection(title: "Session", textColor: gameEngine.currentTheme.textColor.color) {
+                        StatRow(label: "Theme", value: gameEngine.currentTheme.name, textColor: gameEngine.currentTheme.textColor.color)
+                        StatRow(label: "Font Size", value: "\(Int(gameEngine.fontSize))pt", textColor: gameEngine.currentTheme.textColor.color)
+                        StatRow(label: "Streaming", value: gameEngine.streamingEnabled ? "Enabled" : "Disabled", textColor: gameEngine.currentTheme.textColor.color)
+                        StatRow(label: "Auto-Save", value: gameEngine.autoSaveEnabled ? "Enabled" : "Disabled", textColor: gameEngine.currentTheme.textColor.color)
+                    }
+
+                    // All Achievements List
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("All Achievements")
+                            .font(.system(.headline, design: .monospaced))
+                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+
+                        ForEach(gameEngine.achievements) { achievement in
+                            HStack {
+                                Text(achievement.isUnlocked ? "✅" : "⬜")
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(achievement.title)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundColor(gameEngine.currentTheme.textColor.color)
+                                    Text(achievement.description)
+                                        .font(.system(.caption2, design: .monospaced))
+                                        .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.6))
+                                }
+                                Spacer()
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(gameEngine.currentTheme.textColor.color.opacity(0.05))
+                    .cornerRadius(8)
+                }
+            }
+            .frame(height: 500)
+
+            Button("Done") {
+                isPresented = false
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(30)
+        .frame(width: 600)
+        .background(gameEngine.currentTheme.backgroundColor.color)
+    }
+}
+
+struct StatSection<Content: View>: View {
+    let title: String
+    let textColor: Color
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.system(.headline, design: .monospaced))
+                .foregroundColor(textColor)
+
+            content
+        }
+        .padding()
+        .background(textColor.opacity(0.05))
+        .cornerRadius(8)
+    }
+}
+
+struct StatRow: View {
+    let label: String
+    let value: String
+    let textColor: Color
+
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(.system(.body, design: .monospaced))
+                .foregroundColor(textColor.opacity(0.7))
+            Spacer()
+            Text(value)
+                .font(.system(.body, design: .monospaced))
+                .fontWeight(.bold)
+                .foregroundColor(textColor)
+        }
     }
 }
 
@@ -620,6 +761,42 @@ struct SettingsView: View {
                         .onChange(of: gameEngine.autoSaveEnabled) { _ in
                             gameEngine.saveSettings()
                         }
+                }
+
+                // Random Model Mode
+                SettingsSection(title: "Random Model Mode", textColor: gameEngine.currentTheme.textColor.color) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle("Enable random model switching", isOn: $gameEngine.randomModelMode)
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            .onChange(of: gameEngine.randomModelMode) { _ in
+                                gameEngine.saveSettings()
+                            }
+
+                        Text("Automatically switches to a random model every N actions to experience different AI storytelling styles.")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.7))
+
+                        HStack {
+                            Text("Switch every")
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            Picker("", selection: $gameEngine.actionsUntilModelSwitch) {
+                                Text("3").tag(3)
+                                Text("5").tag(5)
+                                Text("10").tag(10)
+                                Text("15").tag(15)
+                            }
+                            .pickerStyle(.menu)
+                            .onChange(of: gameEngine.actionsUntilModelSwitch) { _ in
+                                gameEngine.saveSettings()
+                            }
+                            Text("actions")
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundColor(gameEngine.currentTheme.textColor.color)
+                        }
+                        .disabled(!gameEngine.randomModelMode)
+                    }
                 }
 
                 // Color Theme

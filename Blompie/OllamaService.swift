@@ -27,6 +27,18 @@ struct OllamaOptions: Codable {
 struct OllamaChatResponse: Codable {
     let message: OllamaMessage
     let done: Bool
+    let eval_count: Int?
+    let eval_duration: Int64?
+    let prompt_eval_count: Int?
+    let prompt_eval_duration: Int64?
+
+    var tokensPerSecond: Double? {
+        guard let count = eval_count, let duration = eval_duration, duration > 0 else {
+            return nil
+        }
+        let seconds = Double(duration) / 1_000_000_000.0
+        return Double(count) / seconds
+    }
 }
 
 struct OllamaModel: Codable {
@@ -97,7 +109,7 @@ class OllamaService {
         }
     }
 
-    func chatStreaming(messages: [OllamaMessage], onChunk: @escaping (String) -> Void) async throws {
+    func chatStreaming(messages: [OllamaMessage], onChunk: @escaping (String) -> Void, onComplete: @escaping (Double?) -> Void) async throws {
         guard let url = URL(string: "\(baseURL)/api/chat") else {
             throw OllamaError.invalidURL
         }
@@ -127,6 +139,7 @@ class OllamaService {
             }
 
             var buffer = ""
+            var lastResponse: OllamaChatResponse?
             for try await byte in asyncBytes {
                 let char = Character(UnicodeScalar(byte))
                 buffer.append(char)
@@ -135,10 +148,14 @@ class OllamaService {
                     if let data = buffer.data(using: .utf8),
                        let streamResponse = try? JSONDecoder().decode(OllamaChatResponse.self, from: data) {
                         onChunk(streamResponse.message.content)
+                        lastResponse = streamResponse
                     }
                     buffer = ""
                 }
             }
+
+            // Call completion handler with token/second metrics
+            onComplete(lastResponse?.tokensPerSecond)
 
         } catch let error as OllamaError {
             throw error

@@ -23,11 +23,27 @@ struct OllamaChatResponse: Codable {
     let done: Bool
 }
 
-enum OllamaError: Error {
+enum OllamaError: Error, LocalizedError {
     case invalidURL
     case networkError(Error)
-    case invalidResponse
-    case decodingError(Error)
+    case invalidResponse(statusCode: Int?, body: String?)
+    case decodingError(Error, responseBody: String?)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL:
+            return "Invalid Ollama URL"
+        case .networkError(let error):
+            return "Network error: \(error.localizedDescription)"
+        case .invalidResponse(let statusCode, let body):
+            if let statusCode = statusCode {
+                return "Invalid response (HTTP \(statusCode)): \(body ?? "No details")"
+            }
+            return "Invalid response from Ollama: \(body ?? "No details")"
+        case .decodingError(let error, let body):
+            return "Failed to decode response: \(error.localizedDescription)\nResponse: \(body ?? "Unknown")"
+        }
+    }
 }
 
 class OllamaService {
@@ -53,17 +69,25 @@ class OllamaService {
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
+            let bodyString = String(data: data, encoding: .utf8)
 
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode) else {
-                throw OllamaError.invalidResponse
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw OllamaError.invalidResponse(statusCode: nil, body: bodyString)
             }
 
-            let chatResponse = try JSONDecoder().decode(OllamaChatResponse.self, from: data)
-            return chatResponse.message.content
+            guard (200...299).contains(httpResponse.statusCode) else {
+                throw OllamaError.invalidResponse(statusCode: httpResponse.statusCode, body: bodyString)
+            }
 
-        } catch let error as DecodingError {
-            throw OllamaError.decodingError(error)
+            do {
+                let chatResponse = try JSONDecoder().decode(OllamaChatResponse.self, from: data)
+                return chatResponse.message.content
+            } catch let decodingError as DecodingError {
+                throw OllamaError.decodingError(decodingError, responseBody: bodyString)
+            }
+
+        } catch let error as OllamaError {
+            throw error
         } catch {
             throw OllamaError.networkError(error)
         }

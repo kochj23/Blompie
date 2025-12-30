@@ -125,8 +125,17 @@ class GameEngine: ObservableObject {
 
             saveGame()
         } catch {
-            addMessage("Error: \(error.localizedDescription)")
-            addMessage("Make sure Ollama is running locally (http://localhost:11434)")
+            addMessage("=== ERROR ===")
+            if let ollamaError = error as? OllamaError {
+                addMessage(ollamaError.errorDescription ?? error.localizedDescription)
+            } else {
+                addMessage("Error: \(error.localizedDescription)")
+            }
+            addMessage("")
+            addMessage("Troubleshooting:")
+            addMessage("• Make sure Ollama is running: ollama serve")
+            addMessage("• Verify mistral model is installed: ollama pull mistral")
+            addMessage("• Check Ollama is on port 11434")
         }
     }
 

@@ -1,5 +1,7 @@
 # Blompie
 
+![Blompie Game Interface](Documentation/screenshots/game-interface.png)
+
 A Zork-style text adventure game for macOS powered by Ollama AI with streaming responses, multiple save slots, and customizable themes.
 
 ## Overview

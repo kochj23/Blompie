@@ -427,15 +427,28 @@ class GameEngine: ObservableObject {
 
         STYLE: \(detailInstruction) \(toneInstruction) But ALWAYS prioritize story progression over atmosphere.
 
-        CRITICAL FORMAT REQUIREMENT - YOU MUST FOLLOW THIS EXACTLY:
-        Always end your response with a line containing ONLY:
+        CRITICAL FORMAT REQUIREMENT - THIS IS MANDATORY:
+        You MUST end every response with action options. Use ANY of these formats:
+
+        FORMAT 1 (PREFERRED): Pipe-separated on one line:
         ACTIONS: action1 | action2 | action3 | action4
 
-        DO NOT use numbered lists. DO NOT use markdown bold. Use ONLY the pipe-separated format above.
+        FORMAT 2 (ACCEPTABLE): Numbered list:
+        1. Open the door
+        2. Talk to the merchant
+        3. Pick up the sword
+        4. Go north
 
-        CORRECT: "ACTIONS: Open the door | Talk to the merchant | Pick up the sword | Go north"
-        WRONG: "1. Open the door 2. Talk to merchant" (numbered list not allowed)
-        WRONG: "**Open the door**" (markdown not allowed)
+        FORMAT 3 (ACCEPTABLE): Bulleted list with header:
+        What do you do?
+        1. Action one
+        2. Action two
+        3. Action three
+        4. Action four
+
+        IMPORTANT: Actions must be SHORT (2-6 words), SPECIFIC, and ACTIONABLE.
+        BAD: "Examine the intricate carvings on the ancient door while pondering"
+        GOOD: "Examine door carvings"
 
         Make actions specific and interesting. Prioritize interactive actions over passive examination. MAKE THINGS HAPPEN.
         """
@@ -647,6 +660,7 @@ class GameEngine: ObservableObject {
         ]
 
         var inActionsList = false
+
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
@@ -655,8 +669,14 @@ class GameEngine: ObservableObject {
                 let actionsString = trimmed.replacingOccurrences(of: "ACTIONS:", with: "").trimmingCharacters(in: .whitespaces)
                 actions = actionsString.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
                 inActionsList = false
+            } else if trimmed.lowercased().contains("possible actions") ||
+                      trimmed.lowercased().contains("what do you do") ||
+                      trimmed.lowercased().contains("your options") ||
+                      trimmed.lowercased().contains("you can:") {
+                // Detected action section header
+                inActionsList = true
             } else if trimmed.range(of: "^\\d+\\.\\s*\\*\\*", options: .regularExpression) != nil {
-                // Fallback: Parse numbered list with bold actions (e.g., "1. **Action** (description)")
+                // Parse numbered list with bold actions (e.g., "1. **Action** (description)")
                 inActionsList = true
                 // Extract text between ** markers
                 let components = trimmed.components(separatedBy: "**")
@@ -666,12 +686,16 @@ class GameEngine: ObservableObject {
                         actions.append(action)
                     }
                 }
-            } else if inActionsList && trimmed.range(of: "^\\d+\\.", options: .regularExpression) != nil {
-                // Continue parsing numbered actions without bold
+            } else if trimmed.range(of: "^\\d+\\.", options: .regularExpression) != nil {
+                // Parse any numbered list item as potential action
                 let withoutNumber = trimmed.replacingOccurrences(of: "^\\d+\\.\\s*", with: "", options: .regularExpression)
+                // Remove parenthetical descriptions
                 let action = withoutNumber.components(separatedBy: "(").first?.trimmingCharacters(in: .whitespaces) ?? withoutNumber
-                if !action.isEmpty {
-                    actions.append(action)
+                // Remove trailing punctuation and descriptions
+                let cleanAction = action.components(separatedBy: ":").first?.trimmingCharacters(in: .punctuationCharacters.union(.whitespaces)) ?? action
+                if !cleanAction.isEmpty && cleanAction.count < 80 {
+                    actions.append(cleanAction)
+                    inActionsList = true
                 }
             } else if !trimmed.isEmpty {
                 // Filter out system prompt text

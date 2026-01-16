@@ -74,7 +74,7 @@ class GameEngine: ObservableObject {
     // Settings
     @Published var fontSize: Double = 14
     @Published var streamingEnabled: Bool = true
-    @Published var temperature: Double = 0.7
+    @Published var temperature: Double = 1.3
     @Published var detailLevel: DetailLevel = .normal
     @Published var toneStyle: ToneStyle = .balanced
     @Published var autoSaveEnabled: Bool = true
@@ -140,7 +140,7 @@ class GameEngine: ObservableObject {
 
         streamingEnabled = UserDefaults.standard.object(forKey: "BlompieStreamingEnabled") as? Bool ?? true
         temperature = UserDefaults.standard.double(forKey: "BlompieTemperature")
-        if temperature == 0 { temperature = 0.7 }
+        if temperature == 0 { temperature = 1.3 }
 
         if let detailStr = UserDefaults.standard.string(forKey: "BlompieDetailLevel"),
            let detail = DetailLevel(rawValue: detailStr) {
@@ -173,7 +173,7 @@ class GameEngine: ObservableObject {
     func resetSettings() {
         fontSize = 14
         streamingEnabled = true
-        temperature = 0.7
+        temperature = 1.3
         detailLevel = .normal
         toneStyle = .balanced
         autoSaveEnabled = true

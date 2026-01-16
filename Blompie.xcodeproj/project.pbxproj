@@ -14,15 +14,17 @@
 		A1000009000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000010000000000000001 /* Assets.xcassets */; };
 		A1000027000000000000001 /* ColorTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000028000000000000001 /* ColorTheme.swift */; };
 		A1000029000000000000001 /* TokenMeterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000030000000000000001 /* TokenMeterView.swift */; };
+		A5DF490A8E2797529D368BA9 /* ModernDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = 835FF56C3D5E4159328CA7DC /* ModernDesign.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A1000011000000000000001 /* Blompie.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Blompie.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		835FF56C3D5E4159328CA7DC /* ModernDesign.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ModernDesign.swift; path = Design/ModernDesign.swift; sourceTree = "<group>"; };
 		A1000002000000000000001 /* BlompieApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlompieApp.swift; sourceTree = "<group>"; };
 		A1000004000000000000001 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A1000006000000000000001 /* GameEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngine.swift; sourceTree = "<group>"; };
 		A1000008000000000000001 /* OllamaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaService.swift; sourceTree = "<group>"; };
 		A1000010000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A1000011000000000000001 /* Blompie.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Blompie.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000012000000000000001 /* Blompie.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Blompie.entitlements; sourceTree = "<group>"; };
 		A1000028000000000000001 /* ColorTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorTheme.swift; sourceTree = "<group>"; };
 		A1000030000000000000001 /* TokenMeterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenMeterView.swift; sourceTree = "<group>"; };
@@ -58,6 +60,7 @@
 				A1000030000000000000001 /* TokenMeterView.swift */,
 				A1000010000000000000001 /* Assets.xcassets */,
 				A1000012000000000000001 /* Blompie.entitlements */,
+				A6F827C5956D5AF66A71630F /* Design */,
 			);
 			path = Blompie;
 			sourceTree = "<group>";
@@ -68,6 +71,14 @@
 				A1000011000000000000001 /* Blompie.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A6F827C5956D5AF66A71630F /* Design */ = {
+			isa = PBXGroup;
+			children = (
+				835FF56C3D5E4159328CA7DC /* ModernDesign.swift */,
+			);
+			name = Design;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -145,6 +156,7 @@
 				A1000007000000000000001 /* OllamaService.swift in Sources */,
 				A1000027000000000000001 /* ColorTheme.swift in Sources */,
 				A1000029000000000000001 /* TokenMeterView.swift in Sources */,
+				A5DF490A8E2797529D368BA9 /* ModernDesign.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

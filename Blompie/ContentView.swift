@@ -18,43 +18,52 @@ struct ContentView: View {
     @Environment(\.colorScheme) var systemColorScheme
 
     var body: some View {
-        HStack(spacing: 0) {
-            // Main game area
-            VStack(spacing: 0) {
-                // Terminal output area
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(gameEngine.messages) { message in
-                                Text(message.text)
-                                    .font(.system(size: gameEngine.fontSize, design: .monospaced))
-                                    .foregroundColor(gameEngine.currentTheme.textColor.color)
-                                    .textSelection(.enabled)
-                                    .id(message.id)
-                            }
+        ZStack {
+            // Glassmorphic animated background
+            GlassmorphicBackground()
 
-                            // Show streaming text
-                            if !gameEngine.streamingText.isEmpty {
-                                Text(gameEngine.streamingText)
-                                    .font(.system(size: gameEngine.fontSize, design: .monospaced))
-                                    .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.8))
-                                    .textSelection(.enabled)
-                            }
-
-                            if gameEngine.isLoading && gameEngine.streamingText.isEmpty {
-                                HStack(spacing: 4) {
-                                    Text(">")
-                                        .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.6))
-                                    Text("Thinking...")
-                                        .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.6))
+            HStack(spacing: 0) {
+                // Main game area
+                VStack(spacing: 0) {
+                    // Terminal output area with glass card
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(gameEngine.messages) { message in
+                                    Text(message.text)
+                                        .font(.system(size: gameEngine.fontSize, design: .monospaced))
+                                        .foregroundColor(ModernColors.textPrimary)
+                                        .textSelection(.enabled)
+                                        .id(message.id)
                                 }
-                                .font(.system(size: gameEngine.fontSize, design: .monospaced))
+
+                                // Show streaming text
+                                if !gameEngine.streamingText.isEmpty {
+                                    Text(gameEngine.streamingText)
+                                        .font(.system(size: gameEngine.fontSize, design: .monospaced))
+                                        .foregroundColor(ModernColors.cyan)
+                                        .textSelection(.enabled)
+                                }
+
+                                if gameEngine.isLoading && gameEngine.streamingText.isEmpty {
+                                    HStack(spacing: 4) {
+                                        Text(">")
+                                            .foregroundColor(ModernColors.cyan.opacity(0.6))
+                                        Text("Thinking...")
+                                            .foregroundColor(ModernColors.cyan.opacity(0.6))
+                                    }
+                                    .font(.system(size: gameEngine.fontSize, design: .monospaced))
+                                }
                             }
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .background(gameEngine.currentTheme.backgroundColor.color)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.black.opacity(0.3))
+                                .background(.ultraThinMaterial.opacity(0.9))
+                        )
+                        .padding(12)
                     .onChange(of: gameEngine.messages.count) {
                         if let lastMessage = gameEngine.messages.last {
                             withAnimation {
@@ -76,19 +85,23 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Recent Actions:")
                             .font(.system(size: gameEngine.fontSize - 4, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.5))
+                            .foregroundColor(ModernColors.yellow)
 
                         ForEach(gameEngine.actionHistory.suffix(5).reversed(), id: \.self) { action in
                             Text("• \(action)")
                                 .font(.system(size: gameEngine.fontSize - 4, design: .monospaced))
-                                .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.5))
+                                .foregroundColor(ModernColors.textSecondary)
                                 .lineLimit(1)
                         }
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, 16)
                     .padding(.vertical, 8)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(gameEngine.currentTheme.backgroundColor.color.opacity(0.9))
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.white.opacity(0.05))
+                    )
+                    .padding(.horizontal, 12)
                 }
 
                 // Action buttons with keyboard shortcuts
@@ -100,24 +113,34 @@ struct ContentView: View {
                             }) {
                                 HStack {
                                     Text("[\(index + 1)]")
-                                        .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.6))
+                                        .foregroundColor(ModernColors.cyan.opacity(0.8))
                                     Text(action)
                                     Spacer()
                                 }
                                 .font(.system(size: gameEngine.fontSize, design: .monospaced))
-                                .foregroundColor(gameEngine.currentTheme.textColor.color)
+                                .foregroundColor(ModernColors.textPrimary)
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
-                                .padding(.horizontal, 12)
-                                .background(gameEngine.currentTheme.textColor.color.opacity(0.1))
-                                .cornerRadius(4)
+                                .padding(.vertical, 12)
+                                .padding(.horizontal, 16)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(ModernColors.cyan.opacity(0.15))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(ModernColors.cyan.opacity(0.5), lineWidth: 1)
+                                        )
+                                )
                             }
                             .buttonStyle(.plain)
                             .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: [])
                         }
                     }
                     .padding()
-                    .background(gameEngine.currentTheme.backgroundColor.color.opacity(0.9))
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.white.opacity(0.05))
+                    )
+                    .padding(.horizontal, 12)
                 }
 
                 // Control buttons
@@ -127,7 +150,7 @@ struct ContentView: View {
                     }) {
                         Text("New Game")
                             .font(.system(size: gameEngine.fontSize - 2, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            .foregroundColor(ModernColors.textPrimary)
                     }
                     .buttonStyle(.plain)
 
@@ -136,7 +159,7 @@ struct ContentView: View {
                     }) {
                         Text("Undo")
                             .font(.system(size: gameEngine.fontSize - 2, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            .foregroundColor(ModernColors.textPrimary)
                     }
                     .buttonStyle(.plain)
                     .disabled(gameEngine.stateHistory.isEmpty)
@@ -146,7 +169,7 @@ struct ContentView: View {
                     }) {
                         Text("Save")
                             .font(.system(size: gameEngine.fontSize - 2, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            .foregroundColor(ModernColors.textPrimary)
                     }
                     .buttonStyle(.plain)
 
@@ -155,7 +178,7 @@ struct ContentView: View {
                     }) {
                         Text("Load")
                             .font(.system(size: gameEngine.fontSize - 2, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            .foregroundColor(ModernColors.textPrimary)
                     }
                     .buttonStyle(.plain)
 
@@ -164,20 +187,27 @@ struct ContentView: View {
                     }) {
                         Text("Export")
                             .font(.system(size: gameEngine.fontSize - 2, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            .foregroundColor(ModernColors.textPrimary)
                     }
                     .buttonStyle(.plain)
 
                     Spacer()
 
-                    // Token/sec dial gauge
+                    // Token/sec dial gauge with modern styling
                     if gameEngine.lastTokensPerSecond > 0 {
-                        TokenMeterView(
-                            tokensPerSecond: gameEngine.lastTokensPerSecond,
-                            textColor: gameEngine.currentTheme.textColor.color,
-                            fontSize: gameEngine.fontSize
+                        HStack(spacing: 8) {
+                            Text("⚡")
+                                .font(.system(size: gameEngine.fontSize))
+                            Text(String(format: "%.1f t/s", gameEngine.lastTokensPerSecond))
+                                .font(.system(size: gameEngine.fontSize - 2, design: .monospaced))
+                                .foregroundColor(ModernColors.cyan)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(ModernColors.cyan.opacity(0.15))
                         )
-                        .padding(.horizontal, 8)
                     }
 
                     Button(action: {
@@ -185,7 +215,7 @@ struct ContentView: View {
                     }) {
                         Text("📊")
                             .font(.system(size: gameEngine.fontSize, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            .foregroundColor(ModernColors.textPrimary)
                     }
                     .buttonStyle(.plain)
 
@@ -194,7 +224,7 @@ struct ContentView: View {
                     }) {
                         Text("🏆 \(gameEngine.achievements.filter { $0.isUnlocked }.count)/\(gameEngine.achievements.count)")
                             .font(.system(size: gameEngine.fontSize - 2, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            .foregroundColor(ModernColors.textPrimary)
                     }
                     .buttonStyle(.plain)
 
@@ -203,7 +233,7 @@ struct ContentView: View {
                     }) {
                         Text(gameEngine.showSidebar ? "◀" : "▶")
                             .font(.system(size: gameEngine.fontSize, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            .foregroundColor(ModernColors.textPrimary)
                     }
                     .buttonStyle(.plain)
 
@@ -212,12 +242,22 @@ struct ContentView: View {
                     }) {
                         Text("⚙")
                             .font(.system(size: gameEngine.fontSize, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            .foregroundColor(ModernColors.textPrimary)
                     }
                     .buttonStyle(.plain)
                 }
-                .padding()
-                .background(gameEngine.currentTheme.backgroundColor.color.opacity(0.9))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(white: 0.15))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(ModernColors.cyan.opacity(0.3), lineWidth: 1)
+                        )
+                )
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
             }
 
             // Sidebar
@@ -225,8 +265,8 @@ struct ContentView: View {
                 SidebarView(gameEngine: gameEngine)
                     .frame(width: 300)
             }
+            }
         }
-        .background(gameEngine.currentTheme.backgroundColor.color)
         .onAppear {
             gameEngine.loadGame(fromSlot: "autosave")
             if gameEngine.messages.isEmpty {
@@ -302,60 +342,64 @@ struct SidebarView: View {
                         // Locations
                         Text("Locations Visited")
                             .font(.system(.headline, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            .foregroundColor(ModernColors.cyan)
 
                         if gameEngine.locationHistory.isEmpty {
                             Text("No locations yet")
                                 .font(.system(.caption, design: .monospaced))
-                                .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.5))
+                                .foregroundColor(ModernColors.textSecondary)
                         } else {
                             ForEach(gameEngine.locationHistory.suffix(10).reversed(), id: \.self) { location in
                                 Text("• \(location)")
                                     .font(.system(.caption, design: .monospaced))
-                                    .foregroundColor(gameEngine.currentTheme.textColor.color)
+                                    .foregroundColor(ModernColors.textPrimary)
                             }
                         }
                     } else if selectedTab == 1 {
                         // Inventory
                         Text("Inventory")
                             .font(.system(.headline, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            .foregroundColor(ModernColors.cyan)
 
                         if gameEngine.inventory.isEmpty {
                             Text("No items")
                                 .font(.system(.caption, design: .monospaced))
-                                .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.5))
+                                .foregroundColor(ModernColors.textSecondary)
                         } else {
                             ForEach(gameEngine.inventory, id: \.self) { item in
                                 Text("• \(item)")
                                     .font(.system(.caption, design: .monospaced))
-                                    .foregroundColor(gameEngine.currentTheme.textColor.color)
+                                    .foregroundColor(ModernColors.textPrimary)
                             }
                         }
                     } else if selectedTab == 2 {
                         // NPCs
                         Text("Characters Met")
                             .font(.system(.headline, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            .foregroundColor(ModernColors.cyan)
 
                         if gameEngine.metNPCs.isEmpty {
                             Text("No one yet")
                                 .font(.system(.caption, design: .monospaced))
-                                .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.5))
+                                .foregroundColor(ModernColors.textSecondary)
                         } else {
                             ForEach(gameEngine.metNPCs, id: \.self) { npc in
                                 Text("• \(npc)")
                                     .font(.system(.caption, design: .monospaced))
-                                    .foregroundColor(gameEngine.currentTheme.textColor.color)
+                                    .foregroundColor(ModernColors.textPrimary)
                             }
                         }
                     }
                 }
                 .padding()
             }
-            .background(gameEngine.currentTheme.backgroundColor.color)
         }
-        .background(gameEngine.currentTheme.textColor.color.opacity(0.1))
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.black.opacity(0.3))
+                .background(.ultraThinMaterial.opacity(0.9))
+        )
+        .padding(12)
     }
 }
 
@@ -366,14 +410,17 @@ struct AchievementsView: View {
     @Binding var isPresented: Bool
 
     var body: some View {
-        VStack(spacing: 20) {
-            Text("Achievements")
-                .font(.system(.title, design: .monospaced))
-                .foregroundColor(gameEngine.currentTheme.textColor.color)
+        ZStack {
+            GlassmorphicBackground()
 
-            Text("\(gameEngine.achievements.filter { $0.isUnlocked }.count) / \(gameEngine.achievements.count) Unlocked")
-                .font(.system(.caption, design: .monospaced))
-                .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.7))
+            VStack(spacing: 20) {
+                Text("Achievements")
+                    .font(.system(.title, design: .monospaced))
+                    .foregroundColor(ModernColors.cyan)
+
+                Text("\(gameEngine.achievements.filter { $0.isUnlocked }.count) / \(gameEngine.achievements.count) Unlocked")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(ModernColors.textSecondary)
 
             ScrollView {
                 VStack(spacing: 12) {
@@ -386,37 +433,44 @@ struct AchievementsView: View {
                                 Text(achievement.title)
                                     .font(.system(.body, design: .monospaced))
                                     .fontWeight(.bold)
-                                    .foregroundColor(gameEngine.currentTheme.textColor.color)
+                                    .foregroundColor(ModernColors.textPrimary)
 
                                 Text(achievement.description)
                                     .font(.system(.caption, design: .monospaced))
-                                    .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.7))
+                                    .foregroundColor(ModernColors.textSecondary)
 
                                 if let date = achievement.unlockDate {
                                     Text("Unlocked: \(date.formatted(date: .abbreviated, time: .shortened))")
                                         .font(.system(.caption2, design: .monospaced))
-                                        .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.5))
+                                        .foregroundColor(ModernColors.textTertiary)
                                 }
                             }
 
                             Spacer()
                         }
                         .padding()
-                        .background(achievement.isUnlocked ? gameEngine.currentTheme.textColor.color.opacity(0.1) : gameEngine.currentTheme.textColor.color.opacity(0.05))
-                        .cornerRadius(8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(achievement.isUnlocked ? ModernColors.cyan.opacity(0.15) : Color.white.opacity(0.05))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(ModernColors.cyan.opacity(0.3), lineWidth: 1)
+                                )
+                        )
                     }
                 }
             }
             .frame(height: 400)
 
-            Button("Done") {
-                isPresented = false
+                Button("Done") {
+                    isPresented = false
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(ModernColors.cyan)
             }
-            .buttonStyle(.borderedProminent)
+            .padding(30)
+            .frame(width: 500)
         }
-        .padding(30)
-        .frame(width: 500)
-        .background(gameEngine.currentTheme.backgroundColor.color)
     }
 }
 
@@ -430,45 +484,45 @@ struct StatsView: View {
         VStack(spacing: 20) {
             Text("Game Statistics")
                 .font(.system(.title, design: .monospaced))
-                .foregroundColor(gameEngine.currentTheme.textColor.color)
+                .foregroundColor(ModernColors.textPrimary)
 
             ScrollView {
                 VStack(spacing: 20) {
                     // Performance Stats
-                    StatSection(title: "Performance", textColor: gameEngine.currentTheme.textColor.color) {
-                        StatRow(label: "Token/sec", value: gameEngine.lastTokensPerSecond > 0 ? String(format: "%.1f", gameEngine.lastTokensPerSecond) : "N/A", textColor: gameEngine.currentTheme.textColor.color)
-                        StatRow(label: "Model", value: gameEngine.selectedModel, textColor: gameEngine.currentTheme.textColor.color)
-                        StatRow(label: "Random Mode", value: gameEngine.randomModelMode ? "Enabled" : "Disabled", textColor: gameEngine.currentTheme.textColor.color)
+                    StatSection(title: "Performance", textColor: ModernColors.textPrimary) {
+                        StatRow(label: "Token/sec", value: gameEngine.lastTokensPerSecond > 0 ? String(format: "%.1f", gameEngine.lastTokensPerSecond) : "N/A", textColor: ModernColors.textPrimary)
+                        StatRow(label: "Model", value: gameEngine.selectedModel, textColor: ModernColors.textPrimary)
+                        StatRow(label: "Random Mode", value: gameEngine.randomModelMode ? "Enabled" : "Disabled", textColor: ModernColors.textPrimary)
                     }
 
                     // Gameplay Stats
-                    StatSection(title: "Gameplay", textColor: gameEngine.currentTheme.textColor.color) {
-                        StatRow(label: "Total Actions", value: "\(gameEngine.actionHistory.count)", textColor: gameEngine.currentTheme.textColor.color)
-                        StatRow(label: "Total Messages", value: "\(gameEngine.messages.count)", textColor: gameEngine.currentTheme.textColor.color)
-                        StatRow(label: "NPCs Met", value: "\(gameEngine.metNPCs.count)", textColor: gameEngine.currentTheme.textColor.color)
-                        StatRow(label: "Items Collected", value: "\(gameEngine.inventory.count)", textColor: gameEngine.currentTheme.textColor.color)
-                        StatRow(label: "Locations Visited", value: "\(gameEngine.locationHistory.count)", textColor: gameEngine.currentTheme.textColor.color)
+                    StatSection(title: "Gameplay", textColor: ModernColors.textPrimary) {
+                        StatRow(label: "Total Actions", value: "\(gameEngine.actionHistory.count)", textColor: ModernColors.textPrimary)
+                        StatRow(label: "Total Messages", value: "\(gameEngine.messages.count)", textColor: ModernColors.textPrimary)
+                        StatRow(label: "NPCs Met", value: "\(gameEngine.metNPCs.count)", textColor: ModernColors.textPrimary)
+                        StatRow(label: "Items Collected", value: "\(gameEngine.inventory.count)", textColor: ModernColors.textPrimary)
+                        StatRow(label: "Locations Visited", value: "\(gameEngine.locationHistory.count)", textColor: ModernColors.textPrimary)
                     }
 
                     // Achievements Summary
-                    StatSection(title: "Achievements", textColor: gameEngine.currentTheme.textColor.color) {
-                        StatRow(label: "Unlocked", value: "\(gameEngine.achievements.filter { $0.isUnlocked }.count)/\(gameEngine.achievements.count)", textColor: gameEngine.currentTheme.textColor.color)
-                        StatRow(label: "Progress", value: String(format: "%.0f%%", Double(gameEngine.achievements.filter { $0.isUnlocked }.count) / Double(gameEngine.achievements.count) * 100), textColor: gameEngine.currentTheme.textColor.color)
+                    StatSection(title: "Achievements", textColor: ModernColors.textPrimary) {
+                        StatRow(label: "Unlocked", value: "\(gameEngine.achievements.filter { $0.isUnlocked }.count)/\(gameEngine.achievements.count)", textColor: ModernColors.textPrimary)
+                        StatRow(label: "Progress", value: String(format: "%.0f%%", Double(gameEngine.achievements.filter { $0.isUnlocked }.count) / Double(gameEngine.achievements.count) * 100), textColor: ModernColors.textPrimary)
                     }
 
                     // Session Info
-                    StatSection(title: "Session", textColor: gameEngine.currentTheme.textColor.color) {
-                        StatRow(label: "Theme", value: gameEngine.currentTheme.name, textColor: gameEngine.currentTheme.textColor.color)
-                        StatRow(label: "Font Size", value: "\(Int(gameEngine.fontSize))pt", textColor: gameEngine.currentTheme.textColor.color)
-                        StatRow(label: "Streaming", value: gameEngine.streamingEnabled ? "Enabled" : "Disabled", textColor: gameEngine.currentTheme.textColor.color)
-                        StatRow(label: "Auto-Save", value: gameEngine.autoSaveEnabled ? "Enabled" : "Disabled", textColor: gameEngine.currentTheme.textColor.color)
+                    StatSection(title: "Session", textColor: ModernColors.textPrimary) {
+                        StatRow(label: "Theme", value: gameEngine.currentTheme.name, textColor: ModernColors.textPrimary)
+                        StatRow(label: "Font Size", value: "\(Int(gameEngine.fontSize))pt", textColor: ModernColors.textPrimary)
+                        StatRow(label: "Streaming", value: gameEngine.streamingEnabled ? "Enabled" : "Disabled", textColor: ModernColors.textPrimary)
+                        StatRow(label: "Auto-Save", value: gameEngine.autoSaveEnabled ? "Enabled" : "Disabled", textColor: ModernColors.textPrimary)
                     }
 
                     // All Achievements List
                     VStack(alignment: .leading, spacing: 12) {
                         Text("All Achievements")
                             .font(.system(.headline, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            .foregroundColor(ModernColors.textPrimary)
 
                         ForEach(gameEngine.achievements) { achievement in
                             HStack {
@@ -476,17 +530,17 @@ struct StatsView: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(achievement.title)
                                         .font(.system(.caption, design: .monospaced))
-                                        .foregroundColor(gameEngine.currentTheme.textColor.color)
+                                        .foregroundColor(ModernColors.textPrimary)
                                     Text(achievement.description)
                                         .font(.system(.caption2, design: .monospaced))
-                                        .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.6))
+                                        .foregroundColor(ModernColors.textPrimary.opacity(0.6))
                                 }
                                 Spacer()
                             }
                         }
                     }
                     .padding()
-                    .background(gameEngine.currentTheme.textColor.color.opacity(0.05))
+                    .background(ModernColors.textPrimary.opacity(0.05))
                     .cornerRadius(8)
                 }
             }
@@ -499,7 +553,11 @@ struct StatsView: View {
         }
         .padding(30)
         .frame(width: 600)
-        .background(gameEngine.currentTheme.backgroundColor.color)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.black.opacity(0.3))
+                .background(.ultraThinMaterial.opacity(0.9))
+        )
     }
 }
 
@@ -552,7 +610,7 @@ struct SaveDialogView: View {
         VStack(spacing: 20) {
             Text("Save Game")
                 .font(.system(.title2, design: .monospaced))
-                .foregroundColor(gameEngine.currentTheme.textColor.color)
+                .foregroundColor(ModernColors.textPrimary)
 
             TextField("Save Name", text: $saveName)
                 .textFieldStyle(.roundedBorder)
@@ -563,7 +621,7 @@ struct SaveDialogView: View {
                     isPresented = false
                 }
                 .buttonStyle(.plain)
-                .foregroundColor(gameEngine.currentTheme.textColor.color)
+                .foregroundColor(ModernColors.textPrimary)
 
                 Button("Save") {
                     if !saveName.isEmpty {
@@ -577,7 +635,11 @@ struct SaveDialogView: View {
         }
         .padding(30)
         .frame(width: 400)
-        .background(gameEngine.currentTheme.backgroundColor.color)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.black.opacity(0.3))
+                .background(.ultraThinMaterial.opacity(0.9))
+        )
     }
 }
 
@@ -591,7 +653,7 @@ struct LoadDialogView: View {
         VStack(spacing: 20) {
             Text("Load Game")
                 .font(.system(.title2, design: .monospaced))
-                .foregroundColor(gameEngine.currentTheme.textColor.color)
+                .foregroundColor(ModernColors.textPrimary)
 
             ScrollView {
                 VStack(spacing: 12) {
@@ -603,9 +665,9 @@ struct LoadDialogView: View {
                                     .fontWeight(.bold)
                                 Text("\(slot.savedDate.formatted()) • \(slot.messageCount) messages")
                                     .font(.system(.caption, design: .monospaced))
-                                    .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.7))
+                                    .foregroundColor(ModernColors.textSecondary)
                             }
-                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            .foregroundColor(ModernColors.textPrimary)
 
                             Spacer()
 
@@ -622,14 +684,14 @@ struct LoadDialogView: View {
                             .foregroundColor(.red)
                         }
                         .padding()
-                        .background(gameEngine.currentTheme.textColor.color.opacity(0.1))
+                        .background(ModernColors.textPrimary.opacity(0.1))
                         .cornerRadius(8)
                     }
 
                     if gameEngine.getSaveSlots().isEmpty {
                         Text("No saved games")
                             .font(.system(.body, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.5))
+                            .foregroundColor(ModernColors.textTertiary)
                             .padding()
                     }
                 }
@@ -640,11 +702,15 @@ struct LoadDialogView: View {
                 isPresented = false
             }
             .buttonStyle(.borderless)
-            .foregroundColor(gameEngine.currentTheme.textColor.color)
+            .foregroundColor(ModernColors.textPrimary)
         }
         .padding(30)
         .frame(width: 500)
-        .background(gameEngine.currentTheme.backgroundColor.color)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.black.opacity(0.3))
+                .background(.ultraThinMaterial.opacity(0.9))
+        )
     }
 }
 
@@ -662,10 +728,10 @@ struct SettingsView: View {
                 // Header
                 Text("Settings")
                     .font(.system(.title, design: .monospaced))
-                    .foregroundColor(gameEngine.currentTheme.textColor.color)
+                    .foregroundColor(ModernColors.textPrimary)
 
                 // Model Selection
-                SettingsSection(title: "AI Model", textColor: gameEngine.currentTheme.textColor.color) {
+                SettingsSection(title: "AI Model", textColor: ModernColors.textPrimary) {
                     VStack(alignment: .leading, spacing: 8) {
                         Picker("Model", selection: $gameEngine.selectedModel) {
                             ForEach(gameEngine.availableModels, id: \.self) { model in
@@ -683,17 +749,17 @@ struct SettingsView: View {
                             }
                         }
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(gameEngine.currentTheme.textColor.color)
+                        .foregroundColor(ModernColors.textPrimary)
                     }
                 }
 
                 // Font Size
-                SettingsSection(title: "Font Size", textColor: gameEngine.currentTheme.textColor.color) {
+                SettingsSection(title: "Font Size", textColor: ModernColors.textPrimary) {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("\(Int(gameEngine.fontSize))pt")
                                 .font(.system(.body, design: .monospaced))
-                                .foregroundColor(gameEngine.currentTheme.textColor.color)
+                                .foregroundColor(ModernColors.textPrimary)
                             Spacer()
                         }
                         Slider(value: $gameEngine.fontSize, in: 8...36, step: 2)
@@ -704,17 +770,17 @@ struct SettingsView: View {
                 }
 
                 // Streaming
-                SettingsSection(title: "Streaming", textColor: gameEngine.currentTheme.textColor.color) {
+                SettingsSection(title: "Streaming", textColor: ModernColors.textPrimary) {
                     Toggle("Enable streaming responses", isOn: $gameEngine.streamingEnabled)
                         .font(.system(.body, design: .monospaced))
-                        .foregroundColor(gameEngine.currentTheme.textColor.color)
+                        .foregroundColor(ModernColors.textPrimary)
                         .onChange(of: gameEngine.streamingEnabled) { _ in
                             gameEngine.saveSettings()
                         }
                 }
 
                 // Response Style
-                SettingsSection(title: "Response Style", textColor: gameEngine.currentTheme.textColor.color) {
+                SettingsSection(title: "Response Style", textColor: ModernColors.textPrimary) {
                     VStack(alignment: .leading, spacing: 12) {
                         // Temperature
                         VStack(alignment: .leading, spacing: 4) {
@@ -725,7 +791,7 @@ struct SettingsView: View {
                                 Text(String(format: "%.1f", gameEngine.temperature))
                                     .font(.system(.caption, design: .monospaced))
                             }
-                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            .foregroundColor(ModernColors.textPrimary)
                             Slider(value: $gameEngine.temperature, in: 0.0...1.0, step: 0.1)
                                 .onChange(of: gameEngine.temperature) { _ in
                                     gameEngine.saveSettings()
@@ -757,33 +823,33 @@ struct SettingsView: View {
                 }
 
                 // Auto-Save
-                SettingsSection(title: "Auto-Save", textColor: gameEngine.currentTheme.textColor.color) {
+                SettingsSection(title: "Auto-Save", textColor: ModernColors.textPrimary) {
                     Toggle("Enable auto-save", isOn: $gameEngine.autoSaveEnabled)
                         .font(.system(.body, design: .monospaced))
-                        .foregroundColor(gameEngine.currentTheme.textColor.color)
+                        .foregroundColor(ModernColors.textPrimary)
                         .onChange(of: gameEngine.autoSaveEnabled) { _ in
                             gameEngine.saveSettings()
                         }
                 }
 
                 // Random Model Mode
-                SettingsSection(title: "Random Model Mode", textColor: gameEngine.currentTheme.textColor.color) {
+                SettingsSection(title: "Random Model Mode", textColor: ModernColors.textPrimary) {
                     VStack(alignment: .leading, spacing: 12) {
                         Toggle("Enable random model switching", isOn: $gameEngine.randomModelMode)
                             .font(.system(.body, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            .foregroundColor(ModernColors.textPrimary)
                             .onChange(of: gameEngine.randomModelMode) { _ in
                                 gameEngine.saveSettings()
                             }
 
                         Text("Automatically switches to a random model every N actions to experience different AI storytelling styles.")
                             .font(.system(.caption, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.7))
+                            .foregroundColor(ModernColors.textSecondary)
 
                         HStack {
                             Text("Switch every")
                                 .font(.system(.caption, design: .monospaced))
-                                .foregroundColor(gameEngine.currentTheme.textColor.color)
+                                .foregroundColor(ModernColors.textPrimary)
                             Picker("", selection: $gameEngine.actionsUntilModelSwitch) {
                                 Text("3").tag(3)
                                 Text("5").tag(5)
@@ -796,14 +862,14 @@ struct SettingsView: View {
                             }
                             Text("actions")
                                 .font(.system(.caption, design: .monospaced))
-                                .foregroundColor(gameEngine.currentTheme.textColor.color)
+                                .foregroundColor(ModernColors.textPrimary)
                         }
                         .disabled(!gameEngine.randomModelMode)
                     }
                 }
 
                 // Color Theme
-                SettingsSection(title: "Color Theme", textColor: gameEngine.currentTheme.textColor.color) {
+                SettingsSection(title: "Color Theme", textColor: ModernColors.textPrimary) {
                     VStack(spacing: 8) {
                         ForEach(ColorTheme.allThemes) { theme in
                             Button(action: {
@@ -815,16 +881,16 @@ struct SettingsView: View {
                                         .frame(width: 16, height: 16)
                                     Text(theme.name)
                                         .font(.system(.body, design: .monospaced))
-                                        .foregroundColor(gameEngine.currentTheme.textColor.color)
+                                        .foregroundColor(ModernColors.textPrimary)
                                     Spacer()
                                     if theme.id == gameEngine.currentTheme.id {
                                         Text("✓")
-                                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                                            .foregroundColor(ModernColors.textPrimary)
                                     }
                                 }
                                 .padding(.vertical, 6)
                                 .padding(.horizontal, 8)
-                                .background(theme.id == gameEngine.currentTheme.id ? gameEngine.currentTheme.textColor.color.opacity(0.2) : Color.clear)
+                                .background(theme.id == gameEngine.currentTheme.id ? ModernColors.textPrimary.opacity(0.2) : Color.clear)
                                 .cornerRadius(4)
                             }
                             .buttonStyle(.plain)
@@ -833,11 +899,11 @@ struct SettingsView: View {
                 }
 
                 // Save Management
-                SettingsSection(title: "Save Management", textColor: gameEngine.currentTheme.textColor.color) {
+                SettingsSection(title: "Save Management", textColor: ModernColors.textPrimary) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("\(gameEngine.getSaveSlots().count) save(s)")
                             .font(.system(.caption, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.7))
+                            .foregroundColor(ModernColors.textSecondary)
 
                         Button("Delete All Saves") {
                             showDeleteAllConfirm = true
@@ -848,19 +914,19 @@ struct SettingsView: View {
                 }
 
                 // About
-                SettingsSection(title: "About", textColor: gameEngine.currentTheme.textColor.color) {
+                SettingsSection(title: "About", textColor: ModernColors.textPrimary) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Blompie v1.3.0")
                             .font(.system(.body, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color)
+                            .foregroundColor(ModernColors.textPrimary)
 
                         Text("AI-Powered Text Adventure")
                             .font(.system(.caption, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.7))
+                            .foregroundColor(ModernColors.textSecondary)
 
                         Text("Created by Jordan Koch")
                             .font(.system(.caption, design: .monospaced))
-                            .foregroundColor(gameEngine.currentTheme.textColor.color.opacity(0.7))
+                            .foregroundColor(ModernColors.textSecondary)
 
                         Button("GitHub") {
                             if let url = URL(string: "https://github.com/kochj23/Blompie") {
@@ -868,12 +934,12 @@ struct SettingsView: View {
                             }
                         }
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(gameEngine.currentTheme.textColor.color)
+                        .foregroundColor(ModernColors.textPrimary)
                     }
                 }
 
                 // Reset
-                SettingsSection(title: "Reset", textColor: gameEngine.currentTheme.textColor.color) {
+                SettingsSection(title: "Reset", textColor: ModernColors.textPrimary) {
                     Button("Reset All Settings to Defaults") {
                         showResetConfirm = true
                     }
@@ -891,7 +957,11 @@ struct SettingsView: View {
             .padding(30)
         }
         .frame(width: 600, height: 700)
-        .background(gameEngine.currentTheme.backgroundColor.color)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.black.opacity(0.3))
+                .background(.ultraThinMaterial.opacity(0.9))
+        )
         .alert("Reset Settings?", isPresented: $showResetConfirm) {
             Button("Cancel", role: .cancel) {}
             Button("Reset", role: .destructive) {

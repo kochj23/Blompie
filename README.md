@@ -12,9 +12,10 @@ Blompie is a classic text adventure game that uses local AI (Ollama) to generate
 
 ### Core Gameplay
 - **Streaming responses** ⚡ - Watch text appear in real-time as the AI generates it
-- **AI-powered narrative** - Uses Ollama for dynamic story generation
+- **AI-powered narrative** - Uses Ollama for dynamic story generation (default: mistral)
 - **Action-based gameplay** - Click buttons to choose your actions
 - **No fixed objectives** - Pure exploration and discovery
+- **High creativity** - Temperature set to 1.3 for imaginative storytelling
 
 ### Customization
 - **5 Color themes** 🎨

@@ -80,6 +80,14 @@ class OllamaService {
     var temperature: Double = 0.7
     var maxTokens: Int? = nil
 
+    // Custom URLSession with extended timeout for model loading
+    private lazy var urlSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 300 // 5 minutes for request
+        config.timeoutIntervalForResource = 600 // 10 minutes for resource
+        return URLSession(configuration: config)
+    }()
+
     func fetchInstalledModels() async throws -> [String] {
         guard let url = URL(string: "\(baseURL)/api/tags") else {
             throw OllamaError.invalidURL
@@ -89,7 +97,7 @@ class OllamaService {
         request.httpMethod = "GET"
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await urlSession.data(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw OllamaError.invalidResponse(statusCode: nil, body: nil)
@@ -128,7 +136,7 @@ class OllamaService {
         request.httpBody = try JSONEncoder().encode(chatRequest)
 
         do {
-            let (asyncBytes, response) = try await URLSession.shared.bytes(for: request)
+            let (asyncBytes, response) = try await urlSession.bytes(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw OllamaError.invalidResponse(statusCode: nil, body: nil)
@@ -183,7 +191,7 @@ class OllamaService {
         request.httpBody = try JSONEncoder().encode(chatRequest)
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await urlSession.data(for: request)
             let bodyString = String(data: data, encoding: .utf8)
 
             guard let httpResponse = response as? HTTPURLResponse else {

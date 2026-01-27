@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		058151D82945EB786C6178B1 /* AnalysisUnified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D8135C11113918F2EB3541E /* AnalysisUnified.swift */; };
+		0C581607005215B608FE28BC /* ImageGenerationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C32C458DA22F0B354DF014A /* ImageGenerationService.swift */; };
+		3E40571C44F883735E21FBCD /* ImageGenerationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4D49A69F145E20405EA273E /* ImageGenerationView.swift */; };
+		66DBE56D640F07F3EE004CE5 /* UnifiedAICapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 260DCF64E2FBD979C749AEF7 /* UnifiedAICapabilities.swift */; };
+		8BC151E3AEF548A4169DC01E /* AIBackendManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38A2E66196452BF3AA3F0F84 /* AIBackendManager.swift */; };
 		A1000001000000000000001 /* BlompieApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002000000000000001 /* BlompieApp.swift */; };
 		A1000003000000000000001 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000004000000000000001 /* ContentView.swift */; };
 		A1000005000000000000001 /* GameEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000006000000000000001 /* GameEngine.swift */; };
@@ -15,10 +20,21 @@
 		A1000027000000000000001 /* ColorTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000028000000000000001 /* ColorTheme.swift */; };
 		A1000029000000000000001 /* TokenMeterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000030000000000000001 /* TokenMeterView.swift */; };
 		A5DF490A8E2797529D368BA9 /* ModernDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = 835FF56C3D5E4159328CA7DC /* ModernDesign.swift */; };
+		AB36BC0F2CC4B7E282453FD8 /* SecurityUnified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 723D8AD6E6806DECCA2E2CF5 /* SecurityUnified.swift */; };
+		B5890F36441D8B47BF6B1F02 /* AIBackendManager+Generation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF58222E6296081CAAF7DD7F /* AIBackendManager+Generation.swift */; };
+		B7F0A099C0D7ADC08D758492 /* VoiceUnified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97F04847A118BF7671E15896 /* VoiceUnified.swift */; };
+		B8BF6C5ABC4DFF0CAD855E02 /* ImageGenerationUnified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 632842B5EA413E1013690662 /* ImageGenerationUnified.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		260DCF64E2FBD979C749AEF7 /* UnifiedAICapabilities.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UnifiedAICapabilities.swift; path = AICapabilities/UnifiedAICapabilities.swift; sourceTree = "<group>"; };
+		38A2E66196452BF3AA3F0F84 /* AIBackendManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIBackendManager.swift; sourceTree = "<group>"; };
+		632842B5EA413E1013690662 /* ImageGenerationUnified.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImageGenerationUnified.swift; path = AICapabilities/ImageGenerationUnified.swift; sourceTree = "<group>"; };
+		6C32C458DA22F0B354DF014A /* ImageGenerationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImageGenerationService.swift; path = Blompie/ImageGenerationService.swift; sourceTree = "<group>"; };
+		723D8AD6E6806DECCA2E2CF5 /* SecurityUnified.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SecurityUnified.swift; path = AICapabilities/SecurityUnified.swift; sourceTree = "<group>"; };
 		835FF56C3D5E4159328CA7DC /* ModernDesign.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ModernDesign.swift; path = Design/ModernDesign.swift; sourceTree = "<group>"; };
+		8D8135C11113918F2EB3541E /* AnalysisUnified.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AnalysisUnified.swift; path = AICapabilities/AnalysisUnified.swift; sourceTree = "<group>"; };
+		97F04847A118BF7671E15896 /* VoiceUnified.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VoiceUnified.swift; path = AICapabilities/VoiceUnified.swift; sourceTree = "<group>"; };
 		A1000002000000000000001 /* BlompieApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlompieApp.swift; sourceTree = "<group>"; };
 		A1000004000000000000001 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A1000006000000000000001 /* GameEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngine.swift; sourceTree = "<group>"; };
@@ -28,6 +44,8 @@
 		A1000012000000000000001 /* Blompie.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Blompie.entitlements; sourceTree = "<group>"; };
 		A1000028000000000000001 /* ColorTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorTheme.swift; sourceTree = "<group>"; };
 		A1000030000000000000001 /* TokenMeterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenMeterView.swift; sourceTree = "<group>"; };
+		C4D49A69F145E20405EA273E /* ImageGenerationView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImageGenerationView.swift; path = Blompie/ImageGenerationView.swift; sourceTree = "<group>"; };
+		EF58222E6296081CAAF7DD7F /* AIBackendManager+Generation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "AIBackendManager+Generation.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -41,11 +59,27 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		9A9BB37C9A46AACF3D132BA7 /* AICapabilities */ = {
+			isa = PBXGroup;
+			children = (
+				260DCF64E2FBD979C749AEF7 /* UnifiedAICapabilities.swift */,
+				632842B5EA413E1013690662 /* ImageGenerationUnified.swift */,
+				97F04847A118BF7671E15896 /* VoiceUnified.swift */,
+				8D8135C11113918F2EB3541E /* AnalysisUnified.swift */,
+				723D8AD6E6806DECCA2E2CF5 /* SecurityUnified.swift */,
+			);
+			name = AICapabilities;
+			sourceTree = "<group>";
+		};
 		A1000014000000000000001 = {
 			isa = PBXGroup;
 			children = (
 				A1000015000000000000001 /* Blompie */,
 				A1000016000000000000001 /* Products */,
+				6C32C458DA22F0B354DF014A /* ImageGenerationService.swift */,
+				C4D49A69F145E20405EA273E /* ImageGenerationView.swift */,
+				38A2E66196452BF3AA3F0F84 /* AIBackendManager.swift */,
+				EF58222E6296081CAAF7DD7F /* AIBackendManager+Generation.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -61,6 +95,7 @@
 				A1000010000000000000001 /* Assets.xcassets */,
 				A1000012000000000000001 /* Blompie.entitlements */,
 				A6F827C5956D5AF66A71630F /* Design */,
+				9A9BB37C9A46AACF3D132BA7 /* AICapabilities */,
 			);
 			path = Blompie;
 			sourceTree = "<group>";
@@ -157,6 +192,15 @@
 				A1000027000000000000001 /* ColorTheme.swift in Sources */,
 				A1000029000000000000001 /* TokenMeterView.swift in Sources */,
 				A5DF490A8E2797529D368BA9 /* ModernDesign.swift in Sources */,
+				0C581607005215B608FE28BC /* ImageGenerationService.swift in Sources */,
+				3E40571C44F883735E21FBCD /* ImageGenerationView.swift in Sources */,
+				8BC151E3AEF548A4169DC01E /* AIBackendManager.swift in Sources */,
+				B5890F36441D8B47BF6B1F02 /* AIBackendManager+Generation.swift in Sources */,
+				66DBE56D640F07F3EE004CE5 /* UnifiedAICapabilities.swift in Sources */,
+				B8BF6C5ABC4DFF0CAD855E02 /* ImageGenerationUnified.swift in Sources */,
+				B7F0A099C0D7ADC08D758492 /* VoiceUnified.swift in Sources */,
+				058151D82945EB786C6178B1 /* AnalysisUnified.swift in Sources */,
+				AB36BC0F2CC4B7E282453FD8 /* SecurityUnified.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -289,7 +333,7 @@
 				CODE_SIGN_ENTITLEMENTS = Blompie/Blompie.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -316,7 +360,7 @@
 				CODE_SIGN_ENTITLEMENTS = Blompie/Blompie.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;

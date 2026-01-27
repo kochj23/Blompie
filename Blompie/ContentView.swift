@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showAchievements = false
     @State private var showStats = false
+    @State private var showImageGeneration = false
     @Environment(\.colorScheme) var systemColorScheme
 
     var body: some View {
@@ -229,6 +230,15 @@ struct ContentView: View {
                     .buttonStyle(.plain)
 
                     Button(action: {
+                        showImageGeneration = true
+                    }) {
+                        Text("🎨")
+                            .font(.system(size: gameEngine.fontSize, design: .monospaced))
+                            .foregroundColor(ModernColors.cyan)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: {
                         gameEngine.showSidebar.toggle()
                     }) {
                         Text(gameEngine.showSidebar ? "◀" : "▶")
@@ -299,6 +309,12 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showStats) {
             StatsView(gameEngine: gameEngine, isPresented: $showStats)
+        }
+        .sheet(isPresented: $showImageGeneration) {
+            ImageGenerationView(
+                currentScene: .constant(gameEngine.messages.last?.text ?? "You are in a mysterious place..."),
+                isPresented: $showImageGeneration
+            )
         }
         .preferredColorScheme(gameEngine.currentTheme.id == "paper" ? .light : .dark)
     }

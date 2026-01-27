@@ -1,181 +1,297 @@
-# Blompie
+# Blompie v1.1.0
 
-**AI-Powered Application with Cloud Integration & Ethical Safeguards**
+**AI-Powered Text Adventure Game - Every playthrough is unique**
 
-![Platform](https://img.shields.io/badge/platform-macOS%2013.0%2B-blue)
-![Swift](https://img.shields.io/badge/Swift-5.9-orange)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Status](https://img.shields.io/badge/status-Production-success)
-![AI](https://img.shields.io/badge/AI-5%20Cloud%20Providers-purple)
-![Ethics](https://img.shields.io/badge/Ethics-Protected-green)
+Classic text adventure meets modern AI. Explore infinite procedurally-generated worlds where the AI dungeon master creates your story in real-time.
 
 ---
 
-## ✨ Latest Update: January 26, 2026
+## What is Blompie?
 
-### 🎉 Major Enhancements:
+Blompie is a text-based adventure game powered by local AI (Ollama/MLX). Like classic games Zork and Colossal Cave Adventure, you explore worlds through text commands—but with AI, every playthrough is completely unique. The AI acts as your dungeon master, creating characters, locations, and plot twists on the fly based on your actions.
 
-#### ☁️ Cloud AI Integration (5 Providers)
-- **OpenAI API** - GPT-4o for advanced capabilities
-- **Google Cloud AI** - Vertex AI, Vision, Speech
-- **Microsoft Azure** - Cognitive Services
-- **AWS AI Services** - Bedrock, Rekognition, Polly
-- **IBM Watson** - NLU, Speech, Discovery
+**What Makes Blompie Special:**
+- **Infinite Replayability**: AI generates new adventures every time
+- **True Freedom**: Do literally anything—AI adapts to your choices
+- **Local AI**: Runs on your Mac, no internet required
+- **Save Anywhere**: Multiple save slots with auto-save
+- **Retro Aesthetic**: Classic terminal UI with modern design
+- **AI-Generated Imagery**: Optional scene illustrations
 
-#### 🚀 Enhanced Features
-- **AI Backend Status Menu** - Visual indicators (🟢/🔴/⚪)
-- **Auto-Fallback System** - Switches backends if primary fails
-- **Connection Testing** - Verify API keys work
-- **Usage Tracking** - Token counts and cost estimation
-- **Performance Metrics** - Latency and success rates
-- **Notification System** - Backend status alerts
-- **Keyboard Shortcuts** - ⌘1-⌘9 for quick switching
-
-#### 🛡️ Ethical AI Safeguards (NEW)
-- **Comprehensive content monitoring**
-- **Prohibited use detection** (100+ patterns)
-- **Automatic blocking** of illegal/harmful content
-- **Crisis resource referrals**
-- **Usage logging** (hashed, not plaintext)
-- **Legal compliance** (CSAM reporting, etc.)
-- **Terms of Service** enforcement
-
-**⛔️ Cannot Be Used For:**
-- Illegal activities
-- Harmful content
-- Hate speech
-- Misinformation generation
-- Privacy violations
-- Harassment or abuse
-- Fraud or deception
+**Perfect For:**
+- **Text Adventure Fans**: Modern take on classic IF
+- **Creative Players**: AI adapts to any play style
+- **Offline Gaming**: No internet required with local AI
+- **Story Lovers**: Unique narratives every playthrough
 
 ---
 
-## 🎯 Features
+## Gameplay
 
-### Current Capabilities:
-[App-specific features would be listed here]
+### How to Play
 
-### AI Backend Support:
-- Ollama (local, free)
-- MLX (Apple Silicon optimized)
-- TinyLLM/TinyChat (lightweight)
-- OpenWebUI (self-hosted)
-- OpenAI (cloud, paid)
-- Google Cloud (cloud, paid)
-- Azure (cloud, paid)
-- AWS (cloud, paid)
-- IBM Watson (cloud, paid)
+**You Are The Hero**: Type what you want to do, and the AI responds with what happens.
 
----
+**Example Session:**
+```
+> You wake up in a dimly lit tavern. The smell of ale and smoke fills the air.
+> What do you do?
 
-## 🔒 Security & Ethics
+look around
 
-### Ethical AI Guardian:
-All AI operations are monitored for:
-- ✅ Legal compliance
-- ✅ Ethical use
-- ✅ Safety
-- ✅ Privacy protection
+> You see a hooded figure in the corner, a barkeep polishing glasses,
+> and a notice board with various quests. Stairs lead up to rooms.
 
-Violations are:
-- Automatically detected
-- Immediately blocked
-- Securely logged
-- Reported if required by law
+talk to hooded figure
 
-**Read full terms:** [ETHICAL_AI_TERMS_OF_SERVICE.md](./ETHICAL_AI_TERMS_OF_SERVICE.md)
+> The figure looks up, revealing a scarred face. "You looking for work?
+> The mayor needs someone brave—or foolish. Talk to her at the town hall."
 
----
+go to town hall
 
-## 📦 Installation
-
-```bash
-# Install from DMG
-open Blompie-latest.dmg
-
-# Or from source
-cd "/Volumes/Data/xcode/Blompie"
-xcodebuild -project "Blompie.xcodeproj" -scheme "Blompie" -configuration Release build
-cp -R build/Release/*.app ~/Applications/
+> You step outside into a bustling medieval town square. Children play,
+> merchants hawk wares. The grand town hall looms ahead with marble columns.
 ```
 
-### AI Backend Setup (Optional):
+**The AI Creates:**
+- Characters with personalities and motivations
+- Locations with rich descriptions
+- Plotlines that respond to your actions
+- Consequences for your choices
+- Mysteries and secrets to uncover
+
+### Game Features
+
+**Core Gameplay:**
+- **Infinite Adventures**: Every game is completely different
+- **True Open World**: Go anywhere, do anything
+- **Character Interactions**: Deep NPCs with memories
+- **Inventory System**: Pick up and use items
+- **Location Tracking**: Map of places you've visited
+- **Achievement System**: Unlock achievements for actions
+- **Multiple Endings**: Your choices determine the outcome
+
+**AI Dungeon Master:**
+- **Adaptive Storytelling**: AI responds to your play style
+- **Dynamic NPCs**: Characters remember your actions
+- **Procedural Quests**: Unique missions each playthrough
+- **Context Awareness**: AI remembers previous events
+- **Multiple Tones**: Choose story tone (serious, balanced, whimsical)
+- **Detail Control**: Brief, normal, or detailed descriptions
+
+**Game Progression:**
+- **Save System**: Multiple save slots (8 slots)
+- **Auto-Save**: Automatic saves every few actions
+- **Load Anytime**: Resume from any save point
+- **Action History**: Review your entire playthrough
+- **Undo System**: Rewind bad decisions
+- **Achievement Tracking**: Progress towards 30+ achievements
+
+### Visual Features
+
+**Classic Terminal Aesthetic:**
+- **Retro UI**: Green-on-black terminal (customizable themes)
+- **Monospaced Font**: Authentic typewriter feel
+- **Smooth Scrolling**: Modern smoothness with retro look
+- **Glassmorphic Effects**: Modern visual polish
+- **Color Themes**: Classic green, amber, blue, matrix
+
+**AI-Generated Imagery (Optional):**
+- Generate scene illustrations
+- Character portraits
+- Item visualizations
+- Location artwork
+- Save images to gallery
+
+**Customization:**
+- **Font Size**: Adjustable (⌘+ / ⌘-)
+- **Color Theme**: 5+ retro terminal themes
+- **Detail Level**: Control description length
+- **Tone**: Serious, balanced, or whimsical
+- **Streaming**: See AI write in real-time or instant
+
+---
+
+## What's New in v1.1.0 (January 2026)
+
+### 🚀 MLX Backend Support
+**Apple Silicon native AI for faster, offline gameplay:**
+
+- **Local AI**: Game runs entirely offline on Apple Silicon
+- **Faster Generation**: Neural Engine acceleration
+- **No Internet Required**: Complete privacy
+- **Model Support**: mlx-community models optimized for storytelling
+- **Automatic Fallback**: Switches to Ollama if MLX unavailable
+
+**Setup:**
 ```bash
-# Install Ollama (free, local, private)
+pip install mlx-lm
+# Blompie auto-detects and uses MLX if available
+```
+
+---
+
+## Features
+
+### Story Generation
+- **Infinite Worlds**: Procedurally generated adventures
+- **Dynamic NPCs**: AI creates memorable characters
+- **Branching Narratives**: Your choices shape the story
+- **Multiple Genres**: Fantasy, sci-fi, mystery, horror, comedy
+- **Adaptive Difficulty**: AI adjusts to your skill level
+
+### Game Systems
+- **Combat**: Text-based battle system
+- **Inventory**: Pick up, use, and trade items
+- **Dialogue**: Conversation system with NPCs
+- **Exploration**: Discover locations and secrets
+- **Quests**: AI-generated missions and objectives
+- **Puzzles**: Solve riddles and challenges
+
+### Technical Features
+- **Local AI**: Ollama or MLX (v1.1.0)
+- **Save System**: 8 save slots with auto-save
+- **Undo/Redo**: Rewind bad decisions
+- **Export**: Save game logs as text
+- **Statistics**: Track your play stats
+- **Achievements**: 30+ unlockable achievements
+
+---
+
+## Security & Privacy
+
+- **100% Local**: All AI runs on your Mac
+- **No Internet Required**: Completely offline (with local AI)
+- **No Telemetry**: Zero analytics or tracking
+- **Private Stories**: Your adventures stay private
+- **Ethical AI**: Content moderation prevents harmful outputs
+
+---
+
+## Requirements
+
+### System Requirements
+- **macOS 13.0 (Ventura) or later**
+- **8GB RAM** (16GB recommended for MLX)
+- **Architecture**: Universal (Apple Silicon recommended)
+
+### AI Backend (Choose One)
+**Ollama (Recommended):**
+```bash
 brew install ollama
 ollama serve
-ollama pull mistral:latest
+ollama pull mistral:latest  # Best for storytelling
+```
 
-# Or configure cloud AI in Settings
+**MLX (Apple Silicon Only):**
+```bash
+pip install mlx-lm
+# Blompie auto-detects
+```
+
+### Dependencies
+**Built-in:**
+- SwiftUI, AppKit, Foundation
+
+**Required:**
+- Ollama OR MLX for AI
+
+---
+
+## Installation
+
+### Pre-built Binary
+
+```bash
+open "/Volumes/Data/xcode/binaries/20260127-Blompie-v1.1.0/Blompie-v1.1.0-build2.dmg"
+```
+
+### Build from Source
+
+```bash
+git clone https://github.com/kochj23/Blompie.git
+cd Blompie
+open "Blompie.xcodeproj"
+# Press ⌘R to build and run
 ```
 
 ---
 
-## 🎓 Usage
+## How to Play
 
-1. Launch application
-2. **First time:** Acknowledge ethical guidelines
-3. Configure AI backend (Settings → AI Backend)
-4. Use AI features responsibly
-5. All usage monitored for safety
+### First Adventure
 
----
+1. **Launch Blompie**
+2. **Wait for AI** to generate opening scene
+3. **Type your action** in the input field
+4. **Press Enter** to send
+5. **AI responds** with what happens
+6. **Continue exploring!**
 
-## ⚖️ Legal & Ethics
+### Commands
 
-### Terms:
-- MIT License for code
-- **Ethical AI Terms of Service** for usage
-- Privacy-first design
-- Open source transparency
+**Free-Form Input:**
+- Type anything! "examine door", "talk to merchant", "attack goblin"
+- AI understands natural language
+- Be specific or vague—AI adapts
 
-### Prohibited Uses:
-See [ETHICAL_AI_TERMS_OF_SERVICE.md](./ETHICAL_AI_TERMS_OF_SERVICE.md) for complete list.
+**System Commands:**
+- `/save` - Save current game
+- `/load` - Load saved game
+- `/undo` - Undo last action
+- `/stats` - View statistics
+- `/help` - Show all commands
 
-**Summary:** Don't use for illegal, harmful, or unethical purposes. Violations logged and reported.
+### Tips for Best Experience
 
----
-
-## 🛠️ Development
-
-**Author:** Jordan Koch ([@kochj23](https://github.com/kochj23))
-**Built with:** SwiftUI, Modern macOS APIs
-**AI Architecture:** Multi-backend with ethical safeguards
-
----
-
-## 📊 Version History
-
-**Latest:** Enhanced Edition (Jan 2026)
-- Added 5 cloud AI providers
-- Added ethical safeguards
-- Added enhanced features
-- Production-ready
+- **Be descriptive**: "Carefully open the creaking wooden door"
+- **Try anything**: AI adapts to creative actions
+- **Talk to everyone**: NPCs have deep personalities
+- **Explore thoroughly**: Secrets everywhere
+- **Save often**: Multiple save slots available
+- **Experiment**: There are no wrong answers
 
 ---
 
-## 🆘 Support & Resources
+## Troubleshooting
 
-### App Support:
-- GitHub Issues: [Report bugs](https://github.com/kochj23/Blompie/issues)
-- Documentation: See project files
+**AI Responses Slow:**
+- Use faster model: `ollama pull mistral:latest`
+- Or try MLX on Apple Silicon
+- Close other apps
 
-### Crisis Resources:
-- **988** - Suicide Prevention Lifeline
-- **741741** - Crisis Text Line (text HOME)
-- **1-800-799-7233** - Domestic Violence Hotline
+**Game Stuck:**
+- Try different phrasing
+- Use `/undo` to rewind
+- Restart conversation with `/restart`
 
----
-
-## 📄 License
-
-MIT License - See LICENSE file
-
-**Ethical Usage Required** - See ETHICAL_AI_TERMS_OF_SERVICE.md
+**Ollama Not Responding:**
+- Check: `ollama serve` is running
+- Verify: `ollama list` shows models
+- Restart Ollama service
 
 ---
 
-**Blompie - Powerful AI with responsible safeguards**
+## Version History
 
-© 2026 Jordan Koch. All rights reserved.
+### v1.1.0 (January 2026)
+- MLX backend support
+- Apple Silicon optimization
+- Faster story generation
+
+### v1.0.0 (December 2024)
+- Initial release
+- Ollama integration
+- Save system
+- Achievement system
+
+---
+
+## License
+
+MIT License - Copyright © 2026 Jordan Koch
+
+---
+
+**Last Updated:** January 27, 2026
+**Status:** ✅ Ready to Play

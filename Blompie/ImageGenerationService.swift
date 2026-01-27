@@ -19,7 +19,7 @@ class ImageGenerationService: ObservableObject {
     @Published var isGenerating = false
     @Published var progress: Double = 0
     @Published var lastError: String?
-    @Published var generatedImages: [GeneratedImage] = []
+    @Published var generatedImages: [ServiceGeneratedImage] = []
 
     // MARK: - Properties
 
@@ -30,8 +30,8 @@ class ImageGenerationService: ObservableObject {
     /// Generate image from text prompt
     func generateImage(
         prompt: String,
-        style: ImageStyle = .realistic,
-        size: ImageSize = .square1024
+        style: ServiceImageStyle = .realistic,
+        size: ServiceImageSize = .square1024
     ) async throws -> NSImage {
 
         await MainActor.run {
@@ -55,7 +55,7 @@ class ImageGenerationService: ObservableObject {
         } else if aiBackend.isAutomatic1111Available {
             return try await generateWithAutomatic1111(prompt: prompt, style: style, size: size)
         } else {
-            throw ImageGenerationError.noBackendAvailable
+            throw ServiceImageGenerationError.noBackendAvailable
         }
     }
 
@@ -63,8 +63,8 @@ class ImageGenerationService: ObservableObject {
 
     private func generateWithSwarmUI(
         prompt: String,
-        style: ImageStyle,
-        size: ImageSize
+        style: ServiceImageStyle,
+        size: ServiceImageSize
     ) async throws -> NSImage {
 
         await updateProgress(0.1)
@@ -72,7 +72,7 @@ class ImageGenerationService: ObservableObject {
         let enhancedPrompt = enhancePrompt(prompt, style: style)
 
         guard let url = URL(string: "\(aiBackend.swarmUIServerURL)/API/GenerateText2Image") else {
-            throw ImageGenerationError.invalidURL
+            throw ServiceImageGenerationError.invalidURL
         }
 
         let requestBody: [String: Any] = [
@@ -96,13 +96,13 @@ class ImageGenerationService: ObservableObject {
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw ImageGenerationError.invalidResponse
+            throw ServiceImageGenerationError.invalidResponse
         }
 
         await updateProgress(0.7)
 
         guard httpResponse.statusCode == 200 else {
-            throw ImageGenerationError.httpError(httpResponse.statusCode)
+            throw ServiceImageGenerationError.httpError(httpResponse.statusCode)
         }
 
         struct SwarmUIResponse: Codable {
@@ -114,13 +114,13 @@ class ImageGenerationService: ObservableObject {
         guard let imageBase64 = swarmResponse.images.first,
               let imageData = Data(base64Encoded: imageBase64),
               let image = NSImage(data: imageData) else {
-            throw ImageGenerationError.noImageGenerated
+            throw ServiceImageGenerationError.noImageGenerated
         }
 
         await updateProgress(1.0)
 
         // Save to generated images
-        let generated = GeneratedImage(image: image, prompt: prompt, style: style, backend: "SwarmUI")
+        let generated = ServiceGeneratedImage(image: image, prompt: prompt, style: style, backend: "SwarmUI")
         await MainActor.run {
             generatedImages.insert(generated, at: 0)
         }
@@ -132,23 +132,23 @@ class ImageGenerationService: ObservableObject {
 
     private func generateWithComfyUI(
         prompt: String,
-        style: ImageStyle,
-        size: ImageSize
+        style: ServiceImageStyle,
+        size: ServiceImageSize
     ) async throws -> NSImage {
 
         await updateProgress(0.1)
 
         // ComfyUI workflow would be more complex
         // For now, return placeholder
-        throw ImageGenerationError.notImplemented("ComfyUI integration coming soon")
+        throw ServiceImageGenerationError.notImplemented("ComfyUI integration coming soon")
     }
 
     // MARK: - Automatic1111 Implementation
 
     private func generateWithAutomatic1111(
         prompt: String,
-        style: ImageStyle,
-        size: ImageSize
+        style: ServiceImageStyle,
+        size: ServiceImageSize
     ) async throws -> NSImage {
 
         await updateProgress(0.1)
@@ -156,7 +156,7 @@ class ImageGenerationService: ObservableObject {
         let enhancedPrompt = enhancePrompt(prompt, style: style)
 
         guard let url = URL(string: "\(aiBackend.automatic1111ServerURL)/sdapi/v1/txt2img") else {
-            throw ImageGenerationError.invalidURL
+            throw ServiceImageGenerationError.invalidURL
         }
 
         let requestBody: [String: Any] = [
@@ -181,13 +181,13 @@ class ImageGenerationService: ObservableObject {
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw ImageGenerationError.invalidResponse
+            throw ServiceImageGenerationError.invalidResponse
         }
 
         await updateProgress(0.7)
 
         guard httpResponse.statusCode == 200 else {
-            throw ImageGenerationError.httpError(httpResponse.statusCode)
+            throw ServiceImageGenerationError.httpError(httpResponse.statusCode)
         }
 
         struct A1111Response: Codable {
@@ -199,12 +199,12 @@ class ImageGenerationService: ObservableObject {
         guard let imageBase64 = a1111Response.images.first,
               let imageData = Data(base64Encoded: imageBase64),
               let image = NSImage(data: imageData) else {
-            throw ImageGenerationError.noImageGenerated
+            throw ServiceImageGenerationError.noImageGenerated
         }
 
         await updateProgress(1.0)
 
-        let generated = GeneratedImage(image: image, prompt: prompt, style: style, backend: "Automatic1111")
+        let generated = ServiceGeneratedImage(image: image, prompt: prompt, style: style, backend: "Automatic1111")
         await MainActor.run {
             generatedImages.insert(generated, at: 0)
         }
@@ -214,7 +214,7 @@ class ImageGenerationService: ObservableObject {
 
     // MARK: - Prompt Enhancement
 
-    private func enhancePrompt(_ prompt: String, style: ImageStyle) -> String {
+    private func enhancePrompt(_ prompt: String, style: ServiceImageStyle) -> String {
         var enhanced = prompt
 
         // Add style-specific keywords
@@ -250,16 +250,16 @@ class ImageGenerationService: ObservableObject {
 
 // MARK: - Models
 
-struct GeneratedImage: Identifiable {
+struct ServiceGeneratedImage: Identifiable {
     let id = UUID()
     let image: NSImage
     let prompt: String
-    let style: ImageStyle
+    let style: ServiceImageStyle
     let backend: String
     let timestamp = Date()
 }
 
-enum ImageStyle: String, CaseIterable {
+enum ServiceImageStyle: String, CaseIterable {
     case realistic = "Realistic"
     case artistic = "Artistic"
     case fantasy = "Fantasy"
@@ -268,7 +268,7 @@ enum ImageStyle: String, CaseIterable {
     case anime = "Anime"
 }
 
-enum ImageSize {
+enum ServiceImageSize {
     case square512
     case square1024
     case portrait
@@ -293,7 +293,7 @@ enum ImageSize {
     }
 }
 
-enum ImageGenerationError: LocalizedError {
+enum ServiceImageGenerationError: LocalizedError {
     case noBackendAvailable
     case invalidURL
     case invalidResponse

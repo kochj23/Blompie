@@ -16,7 +16,7 @@ struct ImageGenerationView: View {
 
     @State private var generationType: GenerationType = .scene
     @State private var customPrompt = ""
-    @State private var selectedStyle: ImageStyle = .fantasy
+    @State private var selectedStyle: ServiceImageStyle = .fantasy
     @State private var generatedImage: NSImage?
 
     enum GenerationType: String, CaseIterable {
@@ -70,7 +70,7 @@ struct ImageGenerationView: View {
                             .font(.headline)
 
                         Picker("Style", selection: $selectedStyle) {
-                            ForEach(ImageStyle.allCases, id: \.self) { style in
+                            ForEach(ServiceImageStyle.allCases, id: \.self) { style in
                                 Text(style.rawValue).tag(style)
                             }
                         }

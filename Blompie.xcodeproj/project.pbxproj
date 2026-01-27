@@ -132,6 +132,12 @@
 			dependencies = (
 			);
 			name = Blompie;
+			packageProductDependencies = (
+				70B4ADE8AFC6A19BC2314FD6 /* MLX */,
+				4835595338557C3BD60D677F /* MLXNN */,
+				0EFF461AB5D6DBE412D9692E /* MLXLLM */,
+				37A934361C73BFF8D3B26774 /* MLXLMCommon */,
+			);
 			productName = Blompie;
 			productReference = A1000011000000000000001 /* Blompie.app */;
 			productType = "com.apple.product-type.application";
@@ -160,6 +166,10 @@
 				Base,
 			);
 			mainGroup = A1000014000000000000001;
+			packageReferences = (
+				36E450FB9A1A3D6BC04D6B8E /* XCRemoteSwiftPackageReference "mlx-swift" */,
+				5E23BD476EB0FE5BABEEC9BA /* XCRemoteSwiftPackageReference "mlx-swift-lm" */,
+			);
 			productRefGroup = A1000016000000000000001 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -401,6 +411,48 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		36E450FB9A1A3D6BC04D6B8E /* XCRemoteSwiftPackageReference "mlx-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 0.30.3;
+			};
+		};
+		5E23BD476EB0FE5BABEEC9BA /* XCRemoteSwiftPackageReference "mlx-swift-lm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift-lm";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 0.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		0EFF461AB5D6DBE412D9692E /* MLXLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5E23BD476EB0FE5BABEEC9BA /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLLM;
+		};
+		37A934361C73BFF8D3B26774 /* MLXLMCommon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5E23BD476EB0FE5BABEEC9BA /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLMCommon;
+		};
+		4835595338557C3BD60D677F /* MLXNN */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 36E450FB9A1A3D6BC04D6B8E /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLXNN;
+		};
+		70B4ADE8AFC6A19BC2314FD6 /* MLX */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 36E450FB9A1A3D6BC04D6B8E /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLX;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A1000021000000000000001 /* Project object */;
 }

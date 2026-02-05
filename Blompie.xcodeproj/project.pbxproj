@@ -24,7 +24,38 @@
 		B5890F36441D8B47BF6B1F02 /* AIBackendManager+Generation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF58222E6296081CAAF7DD7F /* AIBackendManager+Generation.swift */; };
 		B7F0A099C0D7ADC08D758492 /* VoiceUnified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97F04847A118BF7671E15896 /* VoiceUnified.swift */; };
 		B8BF6C5ABC4DFF0CAD855E02 /* ImageGenerationUnified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 632842B5EA413E1013690662 /* ImageGenerationUnified.swift */; };
+		C1000031000000000000001 /* SharedDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000032000000000000001 /* SharedDataManager.swift */; };
+		W1000001000000000000001 /* BlompieWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1000002000000000000001 /* BlompieWidget.swift */; };
+		W1000003000000000000001 /* WidgetData.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1000004000000000000001 /* WidgetData.swift */; };
+		W1000005000000000000001 /* SharedDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1000006000000000000001 /* SharedDataManager.swift */; };
+		W1000009000000000000001 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = W1000010000000000000001 /* WidgetKit.framework */; };
+		W1000011000000000000001 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = W1000012000000000000001 /* SwiftUI.framework */; };
+		W1000015000000000000001 /* Blompie Widget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = W1000007000000000000001 /* Blompie Widget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		W1000013000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A1000021000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = W1000008000000000000001;
+			remoteInfo = "Blompie Widget";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		W1000014000000000000001 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				W1000015000000000000001 /* Blompie Widget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		260DCF64E2FBD979C749AEF7 /* UnifiedAICapabilities.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UnifiedAICapabilities.swift; path = AICapabilities/UnifiedAICapabilities.swift; sourceTree = "<group>"; };
@@ -44,8 +75,17 @@
 		A1000012000000000000001 /* Blompie.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Blompie.entitlements; sourceTree = "<group>"; };
 		A1000028000000000000001 /* ColorTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorTheme.swift; sourceTree = "<group>"; };
 		A1000030000000000000001 /* TokenMeterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenMeterView.swift; sourceTree = "<group>"; };
+		C1000032000000000000001 /* SharedDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedDataManager.swift; sourceTree = "<group>"; };
 		C4D49A69F145E20405EA273E /* ImageGenerationView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImageGenerationView.swift; path = Blompie/ImageGenerationView.swift; sourceTree = "<group>"; };
 		EF58222E6296081CAAF7DD7F /* AIBackendManager+Generation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "AIBackendManager+Generation.swift"; sourceTree = "<group>"; };
+		W1000002000000000000001 /* BlompieWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlompieWidget.swift; sourceTree = "<group>"; };
+		W1000004000000000000001 /* WidgetData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetData.swift; sourceTree = "<group>"; };
+		W1000006000000000000001 /* SharedDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedDataManager.swift; sourceTree = "<group>"; };
+		W1000007000000000000001 /* Blompie Widget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Blompie Widget.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		W1000010000000000000001 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		W1000012000000000000001 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		W1000016000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		W1000017000000000000001 /* Blompie_Widget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Blompie_Widget.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -53,6 +93,15 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		W1000018000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				W1000011000000000000001 /* SwiftUI.framework in Frameworks */,
+				W1000009000000000000001 /* WidgetKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -75,7 +124,9 @@
 			isa = PBXGroup;
 			children = (
 				A1000015000000000000001 /* Blompie */,
+				W1000019000000000000001 /* Blompie Widget */,
 				A1000016000000000000001 /* Products */,
+				W1000020000000000000001 /* Frameworks */,
 				6C32C458DA22F0B354DF014A /* ImageGenerationService.swift */,
 				C4D49A69F145E20405EA273E /* ImageGenerationView.swift */,
 				38A2E66196452BF3AA3F0F84 /* AIBackendManager.swift */,
@@ -92,6 +143,7 @@
 				A1000008000000000000001 /* OllamaService.swift */,
 				A1000028000000000000001 /* ColorTheme.swift */,
 				A1000030000000000000001 /* TokenMeterView.swift */,
+				C1000032000000000000001 /* SharedDataManager.swift */,
 				A1000010000000000000001 /* Assets.xcassets */,
 				A1000012000000000000001 /* Blompie.entitlements */,
 				A6F827C5956D5AF66A71630F /* Design */,
@@ -104,6 +156,7 @@
 			isa = PBXGroup;
 			children = (
 				A1000011000000000000001 /* Blompie.app */,
+				W1000007000000000000001 /* Blompie Widget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -116,6 +169,27 @@
 			name = Design;
 			sourceTree = "<group>";
 		};
+		W1000019000000000000001 /* Blompie Widget */ = {
+			isa = PBXGroup;
+			children = (
+				W1000002000000000000001 /* BlompieWidget.swift */,
+				W1000004000000000000001 /* WidgetData.swift */,
+				W1000006000000000000001 /* SharedDataManager.swift */,
+				W1000016000000000000001 /* Info.plist */,
+				W1000017000000000000001 /* Blompie_Widget.entitlements */,
+			);
+			path = "Blompie Widget";
+			sourceTree = "<group>";
+		};
+		W1000020000000000000001 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				W1000010000000000000001 /* WidgetKit.framework */,
+				W1000012000000000000001 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -126,10 +200,12 @@
 				A1000019000000000000001 /* Sources */,
 				A1000013000000000000001 /* Frameworks */,
 				A1000020000000000000001 /* Resources */,
+				W1000014000000000000001 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				W1000021000000000000001 /* PBXTargetDependency */,
 			);
 			name = Blompie;
 			packageProductDependencies = (
@@ -142,6 +218,23 @@
 			productReference = A1000011000000000000001 /* Blompie.app */;
 			productType = "com.apple.product-type.application";
 		};
+		W1000008000000000000001 /* Blompie Widget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = W1000022000000000000001 /* Build configuration list for PBXNativeTarget "Blompie Widget" */;
+			buildPhases = (
+				W1000023000000000000001 /* Sources */,
+				W1000018000000000000001 /* Frameworks */,
+				W1000024000000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Blompie Widget";
+			productName = "Blompie Widget";
+			productReference = W1000007000000000000001 /* Blompie Widget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -153,6 +246,9 @@
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					A1000017000000000000001 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+					W1000008000000000000001 = {
 						CreatedOnToolsVersion = 15.0;
 					};
 				};
@@ -175,6 +271,7 @@
 			projectRoot = "";
 			targets = (
 				A1000017000000000000001 /* Blompie */,
+				W1000008000000000000001 /* Blompie Widget */,
 			);
 		};
 /* End PBXProject section */
@@ -185,6 +282,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1000009000000000000001 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		W1000024000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -201,6 +305,7 @@
 				A1000007000000000000001 /* OllamaService.swift in Sources */,
 				A1000027000000000000001 /* ColorTheme.swift in Sources */,
 				A1000029000000000000001 /* TokenMeterView.swift in Sources */,
+				C1000031000000000000001 /* SharedDataManager.swift in Sources */,
 				A5DF490A8E2797529D368BA9 /* ModernDesign.swift in Sources */,
 				0C581607005215B608FE28BC /* ImageGenerationService.swift in Sources */,
 				3E40571C44F883735E21FBCD /* ImageGenerationView.swift in Sources */,
@@ -214,7 +319,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		W1000023000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				W1000001000000000000001 /* BlompieWidget.swift in Sources */,
+				W1000003000000000000001 /* WidgetData.swift in Sources */,
+				W1000005000000000000001 /* SharedDataManager.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		W1000021000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = W1000008000000000000001 /* Blompie Widget */;
+			targetProxy = W1000013000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A1000023000000000000001 /* Debug */ = {
@@ -341,10 +464,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Blompie/Blompie.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = QRRCB8HB3W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Blompie;
@@ -354,7 +479,8 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = net.digitalnoise.Blompie;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -368,10 +494,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Blompie/Blompie.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = QRRCB8HB3W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Blompie;
@@ -381,9 +509,68 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = net.digitalnoise.Blompie;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		W1000025000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = "Blompie Widget/Blompie_Widget.entitlements";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = QRRCB8HB3W;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Blompie Widget/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Blompie Widget";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Jordan Koch. All rights reserved.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = net.digitalnoise.Blompie.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		W1000026000000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = "Blompie Widget/Blompie_Widget.entitlements";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = QRRCB8HB3W;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Blompie Widget/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Blompie Widget";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Jordan Koch. All rights reserved.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = net.digitalnoise.Blompie.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -406,6 +593,15 @@
 			buildConfigurations = (
 				A1000023000000000000001 /* Debug */,
 				A1000024000000000000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		W1000022000000000000001 /* Build configuration list for PBXNativeTarget "Blompie Widget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				W1000025000000000000001 /* Debug */,
+				W1000026000000000000001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

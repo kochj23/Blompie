@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import WidgetKit
 
 struct GameMessage: Identifiable, Codable {
     let id: UUID
@@ -280,6 +281,8 @@ class GameEngine: ObservableObject {
 
         if changed {
             saveAchievements()
+            // Sync to widget when achievements change
+            SharedDataManager.shared.updateFromGameEngine(self)
         }
     }
 
@@ -606,6 +609,9 @@ class GameEngine: ObservableObject {
             if autoSaveEnabled {
                 saveGame(toSlot: "autosave")
             }
+
+            // Sync to widget
+            SharedDataManager.shared.updateFromGameEngine(self)
         } catch {
             streamingText = ""
             addMessage("=== ERROR ===")

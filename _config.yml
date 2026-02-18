@@ -1,0 +1,3 @@
+theme: jekyll-theme-cayman
+title: "Blompie"
+description: "Zork-style text adventure game for macOS powered by Ollama AI — explore procedurally generated worlds with natural language. Built with Swift and SwiftUI."

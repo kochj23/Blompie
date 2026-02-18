@@ -298,3 +298,17 @@ MIT License - Copyright © 2026 Jordan Koch
 
 **Last Updated:** January 27, 2026
 **Status:** ✅ Ready to Play
+
+---
+
+## More Apps by Jordan Koch
+
+| App | Description |
+|-----|-------------|
+| [GTNW](https://github.com/kochj23/GTNW) | Global Thermal Nuclear War strategy game |
+| [MLXCode](https://github.com/kochj23/MLXCode) | Local AI coding assistant for Apple Silicon |
+| [NewsSummary](https://github.com/kochj23/NewsSummary) | AI-powered news aggregation and summarization |
+| [MailSummary](https://github.com/kochj23/MailSummary) | AI-powered email categorization and summarization |
+| [JiraSummary](https://github.com/kochj23/JiraSummary) | AI-powered Jira dashboard with sprint analytics |
+
+> **[View all projects](https://github.com/kochj23?tab=repositories)**

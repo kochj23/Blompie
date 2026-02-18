@@ -1,5 +1,7 @@
 # Blompie v1.1.0
 
+![Build](https://github.com/kochj23/Blompie/actions/workflows/build.yml/badge.svg)
+
 **AI-Powered Text Adventure Game - Every playthrough is unique**
 
 Classic text adventure meets modern AI. Explore infinite procedurally-generated worlds where the AI dungeon master creates your story in real-time.

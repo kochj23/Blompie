@@ -6,6 +6,9 @@ Classic text adventure meets modern AI. Explore infinite procedurally-generated 
 
 ---
 
+![Blompie](Screenshots/main-window.png)
+
+
 ## What is Blompie?
 
 Blompie is a text-based adventure game powered by local AI (Ollama/MLX). Like classic games Zork and Colossal Cave Adventure, you explore worlds through text commands—but with AI, every playthrough is completely unique. The AI acts as your dungeon master, creating characters, locations, and plot twists on the fly based on your actions.

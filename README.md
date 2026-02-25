@@ -1,4 +1,4 @@
-# Blompie v1.1.0
+# Blompie v1.2.0
 
 ![Build](https://github.com/kochj23/Blompie/actions/workflows/build.yml/badge.svg)
 
@@ -117,9 +117,31 @@ go to town hall
 
 ---
 
+## What's New in v1.2.0 (February 2026)
+
+### macOS Widget Support
+**Track your adventure from Notification Center:**
+
+- **Small Widget**: Shows current adventure name and quick stats
+- **Medium Widget**: Displays last action, action count, and achievement progress
+- **Large Widget**: Full game status with AI backend status and detailed progress
+
+**Widget Features:**
+- **Real-time Sync**: Widget updates as you play
+- **AI Status**: Shows Ollama/MLX availability
+- **Achievement Progress**: Visual progress bar
+- **Quick Launch**: Tap to open Blompie
+
+**Setup:**
+- Widget enabled automatically when you build Blompie
+- Add widget from Notification Center (Edit Widgets)
+- Data syncs via App Group: `group.com.jkoch.blompie`
+
+---
+
 ## What's New in v1.1.0 (January 2026)
 
-### 🚀 MLX Backend Support
+### MLX Backend Support
 **Apple Silicon native AI for faster, offline gameplay:**
 
 - **Local AI**: Game runs entirely offline on Apple Silicon
@@ -170,6 +192,7 @@ pip install mlx-lm
 - **No Telemetry**: Zero analytics or tracking
 - **Private Stories**: Your adventures stay private
 - **Ethical AI**: Content moderation prevents harmful outputs
+- **Keychain Storage**: API keys stored securely in macOS Keychain (not UserDefaults)
 
 ---
 
@@ -279,6 +302,13 @@ open "Blompie.xcodeproj"
 
 ## Version History
 
+### v1.2.0 (February 2026)
+- macOS WidgetKit widget support
+- Small, Medium, Large widget sizes
+- Real-time game state sync to widget
+- AI backend status in widget
+- Achievement progress visualization
+
 ### v1.1.0 (January 2026)
 - MLX backend support
 - Apple Silicon optimization
@@ -298,7 +328,7 @@ MIT License - Copyright © 2026 Jordan Koch
 
 ---
 
-**Last Updated:** January 27, 2026
+**Last Updated:** February 4, 2026
 **Status:** ✅ Ready to Play
 
 ---

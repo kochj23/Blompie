@@ -24,7 +24,7 @@ Blompie is a text-based adventure game powered by local AI (Ollama/MLX). Like cl
 - **AI-Generated Imagery**: Optional scene illustrations
 
 **Perfect For:**
-- **Text Adventure Fans**: Modern take on classic IF
+- **Text Adventure Fans**: Modern take on classic IF (Interactive Fiction)
 - **Creative Players**: AI adapts to any play style
 - **Offline Gaming**: No internet required with local AI
 - **Story Lovers**: Unique narratives every playthrough
@@ -70,7 +70,7 @@ go to town hall
 **Core Gameplay:**
 - **Infinite Adventures**: Every game is completely different
 - **True Open World**: Go anywhere, do anything
-- **Character Interactions**: Deep NPCs with memories
+- **Character Interactions**: Deep NPCs (Non-Player Characters) with memories
 - **Inventory System**: Pick up and use items
 - **Location Tracking**: Map of places you've visited
 - **Achievement System**: Unlock achievements for actions
@@ -142,7 +142,7 @@ go to town hall
 ## What's New in v1.1.0 (January 2026)
 
 ### MLX Backend Support
-**Apple Silicon native AI for faster, offline gameplay:**
+**Apple Silicon native AI for faster, offline gameplay (MLX — Machine Learning eXtensions):**
 
 - **Local AI**: Game runs entirely offline on Apple Silicon
 - **Faster Generation**: Neural Engine acceleration
@@ -200,7 +200,7 @@ pip install mlx-lm
 
 ### System Requirements
 - **macOS 13.0 (Ventura) or later**
-- **8GB RAM** (16GB recommended for MLX)
+- **8GB RAM (Random Access Memory)** (16GB recommended for MLX)
 - **Architecture**: Universal (Apple Silicon recommended)
 
 ### AI Backend (Choose One)
@@ -231,6 +231,7 @@ pip install mlx-lm
 ### Pre-built Binary
 
 ```bash
+# DMG = Disk Image
 open "/Volumes/Data/xcode/binaries/20260127-Blompie-v1.1.0/Blompie-v1.1.0-build2.dmg"
 ```
 

@@ -76,7 +76,7 @@
 		A1000012000000000000001 /* Blompie.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Blompie.entitlements; sourceTree = "<group>"; };
 		A1000028000000000000001 /* ColorTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorTheme.swift; sourceTree = "<group>"; };
 		A1000030000000000000001 /* TokenMeterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenMeterView.swift; sourceTree = "<group>"; };
-		A917E485EDFBB2D619D42A9B /* NovaAPIServer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NovaAPIServer.swift; sourceTree = "<absolute>"; };
+		A917E485EDFBB2D619D42A9B /* NovaAPIServer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "/Volumes/Data/xcode/Blompie/Blompie/NovaAPIServer.swift"; sourceTree = "<absolute>"; };
 		C1000032000000000000001 /* SharedDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedDataManager.swift; sourceTree = "<group>"; };
 		C4D49A69F145E20405EA273E /* ImageGenerationView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImageGenerationView.swift; path = Blompie/ImageGenerationView.swift; sourceTree = "<group>"; };
 		EF58222E6296081CAAF7DD7F /* AIBackendManager+Generation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "AIBackendManager+Generation.swift"; sourceTree = "<group>"; };

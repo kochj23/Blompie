@@ -1,43 +1,235 @@
-# Blompie v1.2.0
+# Blompie
 
 ![Build](https://github.com/kochj23/Blompie/actions/workflows/build.yml/badge.svg)
+![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Swift](https://img.shields.io/badge/Swift-SwiftUI-orange)
 
-**AI-Powered Text Adventure Game - Every playthrough is unique**
+**AI-Powered Text Adventure Engine for macOS -- Every Playthrough Is Unique**
 
-Classic text adventure meets modern AI. Explore infinite procedurally-generated worlds where the AI dungeon master creates your story in real-time.
+Blompie is a native macOS text adventure game that connects to local AI backends
+(Ollama, MLX) to generate infinite, procedural interactive fiction. An AI dungeon
+master creates characters, locations, plots, and consequences in real time based
+entirely on the player's free-form text input. No two sessions are ever the same.
 
----
-
-![Blompie](Screenshots/main-window.png)
-
-
-## What is Blompie?
-
-Blompie is a text-based adventure game powered by local AI (Ollama/MLX). Like classic games Zork and Colossal Cave Adventure, you explore worlds through text commands—but with AI, every playthrough is completely unique. The AI acts as your dungeon master, creating characters, locations, and plot twists on the fly based on your actions.
-
-**What Makes Blompie Special:**
-- **Infinite Replayability**: AI generates new adventures every time
-- **True Freedom**: Do literally anything—AI adapts to your choices
-- **Local AI**: Runs on your Mac, no internet required
-- **Save Anywhere**: Multiple save slots with auto-save
-- **Retro Aesthetic**: Classic terminal UI with modern design
-- **AI-Generated Imagery**: Optional scene illustrations
-
-**Perfect For:**
-- **Text Adventure Fans**: Modern take on classic IF (Interactive Fiction)
-- **Creative Players**: AI adapts to any play style
-- **Offline Gaming**: No internet required with local AI
-- **Story Lovers**: Unique narratives every playthrough
+Written by Jordan Koch.
 
 ---
 
-## Gameplay
+## Architecture
 
-### How to Play
+```
++---------------------------------------------------------------+
+|                       BlompieApp (SwiftUI)                    |
+|  .windowStyle(.hiddenTitleBar)  .defaultSize(1000x700)        |
++---------------------------------------------------------------+
+        |                    |                    |
+        v                    v                    v
++----------------+  +-----------------+  +-------------------+
+|  ContentView   |  | NovaAPIServer   |  | SharedDataManager |
+|  (main UI)     |  | port 37426      |  | App Group sync    |
+|  terminal look |  | REST endpoints  |  | -> WidgetKit      |
++-------+--------+  +--------+--------+  +--------+----------+
+        |                     |                     |
+        v                     v                     |
++-------+---------------------+-------+             |
+|            GameEngine               |             |
+|  - messages / conversation history  |             |
+|  - save slots (8) + autosave       |             |
+|  - undo stack (20 snapshots)       |             |
+|  - achievement tracker (10+)       |             |
+|  - NPC / inventory / location parse|             |
+|  - random-model-switch mode        |             |
++-------+-------+-------+------------+             |
+        |       |       |                           |
+        v       v       v                           v
++--------+ +--------+ +--------------------+ +-------------+
+| Ollama | |  MLX   | | AIBackendManager   | | Blompie     |
+| Service| | (local)| | (multi-backend     | | Widget      |
+| :11434 | |        | |  detection)        | | (WidgetKit) |
++--------+ +--------+ +----+----+----+-----+ +-------------+
+                            |    |    |
+                            v    v    v
+                       +----+----+----+----+
+                       | Image Generation  |
+                       | SwarmUI :7801     |
+                       | ComfyUI :8188    |
+                       | A1111   :7860    |
+                       +-------------------+
 
-**You Are The Hero**: Type what you want to do, and the AI responds with what happens.
+Security & Ethics Layer
++-----------------------+------------------------------+
+| EthicalAIGuardian     | Content moderation, policy   |
+|                       | enforcement, usage logging   |
++-----------------------+------------------------------+
+| Keychain Storage      | All API keys via Security    |
+| (macOS Keychain)      | framework -- never plaintext |
++-----------------------+------------------------------+
+```
 
-**Example Session:**
+---
+
+## Features
+
+### Gameplay
+
+- **Infinite procedural adventures** -- the AI dungeon master generates every
+  location, NPC, item, quest, and plot twist on the fly.
+- **Free-form text input** -- type anything in natural language; the AI adapts.
+- **Dynamic NPCs** -- characters remember your actions and have their own
+  motivations, quirks, and dialogue.
+- **Inventory and location tracking** -- items, places, and NPCs are parsed
+  from AI responses and tracked automatically.
+- **Achievement system** -- 10+ unlockable achievements (First Steps, Explorer,
+  World Traveler, Social Butterfly, Diplomat, Collector, Hoarder,
+  Conversationalist, Veteran Adventurer, Trader).
+- **Multiple genres** -- fantasy, sci-fi, mystery, horror, comedy.
+- **Configurable tone** -- Serious, Balanced, or Whimsical.
+- **Configurable detail level** -- Brief, Normal, or Detailed descriptions.
+
+### Save System
+
+- **8 manual save slots** plus automatic autosave.
+- **Undo stack** -- rewind up to 20 actions.
+- **Export** -- save a full game transcript as plain text.
+
+### Visual Design
+
+- **Retro terminal aesthetic** -- green-on-black by default, with five built-in
+  color themes: Classic Green, Amber Terminal, Retro Blue, Paper Mode,
+  Matrix Green.
+- **Adjustable font size** -- keyboard shortcuts for quick resizing.
+- **Glassmorphic UI** with smooth scrolling and monospaced type.
+- **Real-time streaming** -- watch the AI write token by token, or switch to
+  instant mode.
+- **Token-per-second meter** -- live performance indicator.
+
+### AI-Generated Imagery (Optional)
+
+- Scene illustrations, character portraits, item visualizations, and location
+  artwork generated via SwarmUI, ComfyUI, or Automatic1111.
+- Six prompt styles: Realistic, Artistic, Fantasy, Pixel Art, Cartoon, Anime.
+
+### macOS Widget (WidgetKit)
+
+Added in v1.2.0. Three sizes:
+
+| Size   | Shows                                                |
+|--------|------------------------------------------------------|
+| Small  | Adventure name, quick stats                          |
+| Medium | Last action, action count, achievement progress bar  |
+| Large  | Full game state, AI backend status, detailed progress|
+
+Widget data syncs via the shared App Group `group.com.jkoch.blompie`.
+
+### Random Model Mode
+
+Enable automatic model rotation -- after a configurable number of actions the
+engine switches to a randomly selected Ollama model, producing unpredictable
+narrative shifts mid-adventure.
+
+### Nova / OpenClaw API
+
+Blompie exposes a local HTTP API on port **37426** (loopback only, no
+authentication required) for programmatic play by AI agents.
+
+| Method | Endpoint                          | Description                         |
+|--------|-----------------------------------|-------------------------------------|
+| GET    | /api/status                       | App status and uptime               |
+| GET    | /api/ping                         | Health check                        |
+| GET    | /api/models                       | Available Ollama models             |
+| POST   | /api/adventure/new                | Start a new adventure session       |
+| GET    | /api/adventure/sessions           | List active sessions                |
+| GET    | /api/adventure/:id/state          | Current state (messages, inventory) |
+| POST   | /api/adventure/:id/action         | Send a command, get AI response     |
+| GET    | /api/adventure/:id/history        | Full message history                |
+| POST   | /api/adventure/:id/save           | Save session to slot                |
+| GET    | /api/adventure/:id/saves          | List save slots                     |
+| POST   | /api/adventure/:id/undo           | Undo last action                    |
+| DELETE | /api/adventure/:id                | End and delete session              |
+
+```bash
+# Quick status check
+curl -s http://127.0.0.1:37426/api/status | python3 -m json.tool
+
+# Start a new adventure via API
+curl -X POST http://127.0.0.1:37426/api/adventure/new \
+  -H "Content-Type: application/json" \
+  -d '{"model":"mistral","tone":"whimsical","detail":"detailed"}'
+```
+
+---
+
+## Requirements
+
+| Requirement          | Minimum                         | Recommended               |
+|----------------------|---------------------------------|---------------------------|
+| macOS                | 13.0 (Ventura)                  | 14.0+ (Sonoma)            |
+| RAM                  | 8 GB                            | 16 GB (for MLX models)    |
+| Architecture         | Universal (Intel + Apple Silicon)| Apple Silicon              |
+| AI Backend           | Ollama **or** MLX               | Ollama with mistral model |
+
+---
+
+## Installation
+
+Blompie is distributed as a DMG disk image. It is **not** available on the
+Mac App Store.
+
+### From DMG (Pre-built Binary)
+
+1. Download the latest DMG from
+   [Releases](https://github.com/kochj23/Blompie/releases).
+2. Open the DMG and drag **Blompie.app** to your Applications folder.
+3. Launch Blompie from Applications or Spotlight.
+
+### Build from Source
+
+```bash
+git clone git@github.com:kochj23/Blompie.git
+cd Blompie
+open Blompie.xcodeproj
+# Press Cmd+R to build and run
+```
+
+Xcode 15 or later is required.
+
+### AI Backend Setup
+
+You need at least one local AI backend running before Blompie can generate
+adventures.
+
+**Ollama (recommended):**
+
+```bash
+brew install ollama
+ollama serve
+ollama pull mistral:latest
+```
+
+**MLX (Apple Silicon only):**
+
+```bash
+pip install mlx-lm
+# Blompie auto-detects MLX when available
+```
+
+Blompie will automatically fall back from MLX to Ollama if the preferred
+backend is unavailable.
+
+---
+
+## How to Play
+
+1. Launch Blompie. The AI generates an opening scene automatically.
+2. Type any action in the input field: `look around`, `talk to the merchant`,
+   `open the chest`, `cast a spell on the door`.
+3. Press Enter. The AI responds with narrative and a set of suggested actions.
+4. Click a suggested action or type your own.
+5. Use `/save`, `/load`, `/undo`, `/stats`, or `/help` for system commands.
+
+### Example Session
+
 ```
 > You wake up in a dimly lit tavern. The smell of ale and smoke fills the air.
 > What do you do?
@@ -50,287 +242,138 @@ look around
 talk to hooded figure
 
 > The figure looks up, revealing a scarred face. "You looking for work?
-> The mayor needs someone brave—or foolish. Talk to her at the town hall."
-
-go to town hall
-
-> You step outside into a bustling medieval town square. Children play,
-> merchants hawk wares. The grand town hall looms ahead with marble columns.
+> The mayor needs someone brave -- or foolish. Talk to her at the town hall."
 ```
 
-**The AI Creates:**
-- Characters with personalities and motivations
-- Locations with rich descriptions
-- Plotlines that respond to your actions
-- Consequences for your choices
-- Mysteries and secrets to uncover
+### Tips
 
-### Game Features
-
-**Core Gameplay:**
-- **Infinite Adventures**: Every game is completely different
-- **True Open World**: Go anywhere, do anything
-- **Character Interactions**: Deep NPCs (Non-Player Characters) with memories
-- **Inventory System**: Pick up and use items
-- **Location Tracking**: Map of places you've visited
-- **Achievement System**: Unlock achievements for actions
-- **Multiple Endings**: Your choices determine the outcome
-
-**AI Dungeon Master:**
-- **Adaptive Storytelling**: AI responds to your play style
-- **Dynamic NPCs**: Characters remember your actions
-- **Procedural Quests**: Unique missions each playthrough
-- **Context Awareness**: AI remembers previous events
-- **Multiple Tones**: Choose story tone (serious, balanced, whimsical)
-- **Detail Control**: Brief, normal, or detailed descriptions
-
-**Game Progression:**
-- **Save System**: Multiple save slots (8 slots)
-- **Auto-Save**: Automatic saves every few actions
-- **Load Anytime**: Resume from any save point
-- **Action History**: Review your entire playthrough
-- **Undo System**: Rewind bad decisions
-- **Achievement Tracking**: Progress towards 30+ achievements
-
-### Visual Features
-
-**Classic Terminal Aesthetic:**
-- **Retro UI**: Green-on-black terminal (customizable themes)
-- **Monospaced Font**: Authentic typewriter feel
-- **Smooth Scrolling**: Modern smoothness with retro look
-- **Glassmorphic Effects**: Modern visual polish
-- **Color Themes**: Classic green, amber, blue, matrix
-
-**AI-Generated Imagery (Optional):**
-- Generate scene illustrations
-- Character portraits
-- Item visualizations
-- Location artwork
-- Save images to gallery
-
-**Customization:**
-- **Font Size**: Adjustable (⌘+ / ⌘-)
-- **Color Theme**: 5+ retro terminal themes
-- **Detail Level**: Control description length
-- **Tone**: Serious, balanced, or whimsical
-- **Streaming**: See AI write in real-time or instant
+- Be descriptive. "Carefully open the creaking wooden door" produces richer
+  narrative than "open door".
+- Talk to NPCs. They have deep personalities and may offer quests, items,
+  or vital information.
+- Save often. You have 8 slots plus autosave.
+- Experiment. There are no wrong answers -- the AI adapts to anything.
 
 ---
 
-## What's New in v1.2.0 (February 2026)
+## Technical Details
 
-### macOS Widget Support
-**Track your adventure from Notification Center:**
+### Project Structure
 
-- **Small Widget**: Shows current adventure name and quick stats
-- **Medium Widget**: Displays last action, action count, and achievement progress
-- **Large Widget**: Full game status with AI backend status and detailed progress
-
-**Widget Features:**
-- **Real-time Sync**: Widget updates as you play
-- **AI Status**: Shows Ollama/MLX availability
-- **Achievement Progress**: Visual progress bar
-- **Quick Launch**: Tap to open Blompie
-
-**Setup:**
-- Widget enabled automatically when you build Blompie
-- Add widget from Notification Center (Edit Widgets)
-- Data syncs via App Group: `group.com.jkoch.blompie`
-
----
-
-## What's New in v1.1.0 (January 2026)
-
-### MLX Backend Support
-**Apple Silicon native AI for faster, offline gameplay (MLX — Machine Learning eXtensions):**
-
-- **Local AI**: Game runs entirely offline on Apple Silicon
-- **Faster Generation**: Neural Engine acceleration
-- **No Internet Required**: Complete privacy
-- **Model Support**: mlx-community models optimized for storytelling
-- **Automatic Fallback**: Switches to Ollama if MLX unavailable
-
-**Setup:**
-```bash
-pip install mlx-lm
-# Blompie auto-detects and uses MLX if available
+```
+Blompie/
+  BlompieApp.swift           -- App entry point, starts NovaAPIServer
+  ContentView.swift          -- Main terminal UI (SwiftUI)
+  GameEngine.swift           -- Core game loop, save/load, achievements
+  OllamaService.swift        -- Ollama HTTP client (chat + streaming)
+  ColorTheme.swift           -- 5 terminal color themes
+  NovaAPIServer.swift        -- REST API for AI agent integration
+  SharedDataManager.swift    -- App Group data sync for widget
+  ImageGenerationService.swift -- SwarmUI/ComfyUI/A1111 image gen
+  ImageGenerationView.swift  -- Image generation UI
+  TokenMeterView.swift       -- Tokens/sec performance display
+  AICapabilities/            -- Unified AI capability detection
+  Design/                    -- Modern UI design components
+Blompie Widget/
+  BlompieWidget.swift        -- WidgetKit extension (S/M/L)
+  WidgetData.swift           -- Widget data model
+  SharedDataManager.swift    -- Widget-side App Group reader
+AIBackendManager.swift       -- Multi-backend detection (Ollama, MLX,
+                                TinyLLM, TinyChat, OpenWebUI, cloud)
+AIBackendManager+Enhanced.swift
+AIBackendManager+EthicalGuardian.swift
+AIBackendManager+Generation.swift
+AIBackendStatusMenu.swift    -- Backend status UI
+EthicalAIGuardian.swift      -- Content moderation and policy enforcement
 ```
 
----
+### Key Design Decisions
 
-## Features
+- **SwiftUI + AppKit** -- native macOS, no Electron, no web views.
+- **No app sandbox** -- `com.apple.security.app-sandbox` is set to `false`
+  because the app needs unrestricted localhost network access to reach Ollama,
+  MLX, and image generation backends.
+- **Keychain for secrets** -- all API keys are stored in macOS Keychain via the
+  Security framework. Keys are never stored in UserDefaults, plists, or source.
+- **Streaming responses** -- the Ollama client supports both streaming
+  (token-by-token) and batch modes.
+- **Ethical AI Guardian** -- a mandatory content moderation layer that screens
+  all AI input and output for policy violations.
+- **NLP parsing of AI output** -- the game engine heuristically extracts NPCs,
+  inventory items, and locations from the AI's narrative text so it can track
+  game state without a structured data contract from the model.
 
-### Story Generation
-- **Infinite Worlds**: Procedurally generated adventures
-- **Dynamic NPCs**: AI creates memorable characters
-- **Branching Narratives**: Your choices shape the story
-- **Multiple Genres**: Fantasy, sci-fi, mystery, horror, comedy
-- **Adaptive Difficulty**: AI adjusts to your skill level
+### Supported AI Backends
 
-### Game Systems
-- **Combat**: Text-based battle system
-- **Inventory**: Pick up, use, and trade items
-- **Dialogue**: Conversation system with NPCs
-- **Exploration**: Discover locations and secrets
-- **Quests**: AI-generated missions and objectives
-- **Puzzles**: Solve riddles and challenges
-
-### Technical Features
-- **Local AI**: Ollama or MLX (v1.1.0)
-- **Save System**: 8 save slots with auto-save
-- **Undo/Redo**: Rewind bad decisions
-- **Export**: Save game logs as text
-- **Statistics**: Track your play stats
-- **Achievements**: 30+ unlockable achievements
-
----
-
-## Security & Privacy
-
-- **100% Local**: All AI runs on your Mac
-- **No Internet Required**: Completely offline (with local AI)
-- **No Telemetry**: Zero analytics or tracking
-- **Private Stories**: Your adventures stay private
-- **Ethical AI**: Content moderation prevents harmful outputs
-- **Keychain Storage**: API keys stored securely in macOS Keychain (not UserDefaults)
-
----
-
-## Requirements
-
-### System Requirements
-- **macOS 13.0 (Ventura) or later**
-- **8GB RAM (Random Access Memory)** (16GB recommended for MLX)
-- **Architecture**: Universal (Apple Silicon recommended)
-
-### AI Backend (Choose One)
-**Ollama (Recommended):**
-```bash
-brew install ollama
-ollama serve
-ollama pull mistral:latest  # Best for storytelling
-```
-
-**MLX (Apple Silicon Only):**
-```bash
-pip install mlx-lm
-# Blompie auto-detects
-```
-
-### Dependencies
-**Built-in:**
-- SwiftUI, AppKit, Foundation
-
-**Required:**
-- Ollama OR MLX for AI
-
----
-
-## Installation
-
-### Pre-built Binary
-
-```bash
-# DMG = Disk Image
-open "/Volumes/Data/xcode/binaries/20260127-Blompie-v1.1.0/Blompie-v1.1.0-build2.dmg"
-```
-
-### Build from Source
-
-```bash
-git clone https://github.com/kochj23/Blompie.git
-cd Blompie
-open "Blompie.xcodeproj"
-# Press ⌘R to build and run
-```
-
----
-
-## How to Play
-
-### First Adventure
-
-1. **Launch Blompie**
-2. **Wait for AI** to generate opening scene
-3. **Type your action** in the input field
-4. **Press Enter** to send
-5. **AI responds** with what happens
-6. **Continue exploring!**
-
-### Commands
-
-**Free-Form Input:**
-- Type anything! "examine door", "talk to merchant", "attack goblin"
-- AI understands natural language
-- Be specific or vague—AI adapts
-
-**System Commands:**
-- `/save` - Save current game
-- `/load` - Load saved game
-- `/undo` - Undo last action
-- `/stats` - View statistics
-- `/help` - Show all commands
-
-### Tips for Best Experience
-
-- **Be descriptive**: "Carefully open the creaking wooden door"
-- **Try anything**: AI adapts to creative actions
-- **Talk to everyone**: NPCs have deep personalities
-- **Explore thoroughly**: Secrets everywhere
-- **Save often**: Multiple save slots available
-- **Experiment**: There are no wrong answers
+| Backend        | Type             | Default Port | Notes                        |
+|----------------|------------------|--------------|------------------------------|
+| Ollama         | Text LLM         | 11434        | Primary, recommended         |
+| MLX            | Text LLM         | --           | Apple Silicon native, local  |
+| TinyLLM        | Text LLM         | 8000         | Lightweight server           |
+| TinyChat       | Text LLM         | 8000         | Jason Cox chatbot interface  |
+| OpenWebUI      | Text LLM         | 8080 / 3000  | Self-hosted AI platform      |
+| SwarmUI        | Image generation  | 7801         | Flux models                  |
+| ComfyUI        | Image generation  | 8188         | Node-based workflows         |
+| Automatic1111  | Image generation  | 7860         | Stable Diffusion WebUI       |
+| OpenAI         | Cloud LLM        | --           | GPT-4o (API key in Keychain) |
+| Google Cloud   | Cloud LLM        | --           | Vertex AI                    |
+| Azure          | Cloud LLM        | --           | Cognitive Services           |
+| AWS            | Cloud LLM        | --           | Bedrock                      |
+| IBM Watson     | Cloud LLM        | --           | NLU, Speech, Discovery       |
 
 ---
 
 ## Troubleshooting
 
-**AI Responses Slow:**
-- Use faster model: `ollama pull mistral:latest`
-- Or try MLX on Apple Silicon
-- Close other apps
+**AI not responding:**
+- Verify Ollama is running: `ollama serve`
+- Verify a model is installed: `ollama list`
+- Try pulling a model: `ollama pull mistral:latest`
 
-**Game Stuck:**
-- Try different phrasing
-- Use `/undo` to rewind
-- Restart conversation with `/restart`
+**Slow responses:**
+- Use a smaller, faster model (e.g., `mistral` or `phi`).
+- Switch to MLX on Apple Silicon for Neural Engine acceleration.
+- Close memory-intensive applications.
 
-**Ollama Not Responding:**
-- Check: `ollama serve` is running
-- Verify: `ollama list` shows models
-- Restart Ollama service
+**Game feels stuck / AI repeats itself:**
+- Try a more specific command.
+- Use `/undo` to rewind and try a different approach.
+- Adjust the temperature slider (higher = more creative, lower = more focused).
+
+**Widget not updating:**
+- Ensure the app and widget share the App Group `group.com.jkoch.blompie`.
+- Rebuild both targets in Xcode.
 
 ---
 
 ## Version History
 
-### v1.2.0 (February 2026)
-- macOS WidgetKit widget support
-- Small, Medium, Large widget sizes
-- Real-time game state sync to widget
-- AI backend status in widget
-- Achievement progress visualization
+| Version | Date           | Highlights                                       |
+|---------|----------------|--------------------------------------------------|
+| 1.2.0   | February 2026  | macOS WidgetKit support (Small/Medium/Large)     |
+| 1.1.0   | January 2026   | MLX backend, Apple Silicon optimization          |
+| 1.0.0   | December 2024  | Initial release, Ollama integration, save system |
 
-### v1.1.0 (January 2026)
-- MLX backend support
-- Apple Silicon optimization
-- Faster story generation
+---
 
-### v1.0.0 (December 2024)
-- Initial release
-- Ollama integration
-- Save system
-- Achievement system
+## Security and Privacy
+
+- **100% local by default.** All AI inference runs on your Mac. No data leaves
+  the machine unless you explicitly configure a cloud backend.
+- **No telemetry.** Zero analytics, tracking, or phone-home behavior.
+- **Keychain storage.** API keys stored in macOS Keychain, never in plaintext.
+- **Ethical AI Guardian.** Mandatory content moderation layer that cannot be
+  disabled. Screens prompts and responses for policy violations.
+- **Loopback-only API.** The Nova API server binds to 127.0.0.1 -- no external
+  network exposure.
 
 ---
 
 ## License
 
-MIT License - Copyright © 2026 Jordan Koch
+MIT License -- Copyright (c) 2024 Jordan Koch
 
----
-
-**Last Updated:** February 4, 2026
-**Status:** ✅ Ready to Play
+See [LICENSE](LICENSE) for the full text.
 
 ---
 
@@ -338,48 +381,15 @@ MIT License - Copyright © 2026 Jordan Koch
 
 | App | Description |
 |-----|-------------|
-| [GTNW](https://github.com/kochj23/GTNW) | Global Thermal Nuclear War strategy game |
 | [MLXCode](https://github.com/kochj23/MLXCode) | Local AI coding assistant for Apple Silicon |
+| [GTNW](https://github.com/kochj23/GTNW) | Global Thermal Nuclear War strategy game |
 | [NewsSummary](https://github.com/kochj23/NewsSummary) | AI-powered news aggregation and summarization |
 | [MailSummary](https://github.com/kochj23/MailSummary) | AI-powered email categorization and summarization |
 | [JiraSummary](https://github.com/kochj23/JiraSummary) | AI-powered Jira dashboard with sprint analytics |
 
-> **[View all projects](https://github.com/kochj23?tab=repositories)**
+[View all projects](https://github.com/kochj23?tab=repositories)
 
 ---
 
-> **Disclaimer:** This is a personal project created on my own time. It is not affiliated with, endorsed by, or representative of my employer.
-
-## Nova / Claude API Integration
-
-This app exposes a local HTTP API on port **37426** for integration with [Nova](https://github.com/kochj23) (OpenClaw AI) and Claude Code.
-
-**Platform:** macOS  
-**Auth:** None (loopback only — macOS apps bind to 127.0.0.1)
-
-### Standard Endpoints
-
-```bash
-curl http://127.0.0.1:37426/api/status   # App status + uptime
-curl http://127.0.0.1:37426/api/ping     # Health check
-```
-
-### App-Specific Endpoints
-
-```
-/api/status
-/api/ping
-```
-
-### Usage Example
-
-```bash
-# Check if running
-curl -s http://127.0.0.1:37426/api/status | python3 -m json.tool
-
-# From Nova (OpenClaw TUI)
-# Nova has this pre-authorized and will use these endpoints automatically
-```
-
-The API server starts automatically when the app launches and binds to loopback only — no external network exposure.
-
+> **Disclaimer:** This is a personal project created on my own time. It is not
+> affiliated with, endorsed by, or representative of my employer.

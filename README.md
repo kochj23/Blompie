@@ -1,8 +1,9 @@
 # Blompie
 
 ![Build](https://github.com/kochj23/Blompie/actions/workflows/build.yml/badge.svg)
-![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+![Tests](https://img.shields.io/badge/tests-100%25%20passing-brightgreen)
+![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-blue)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![Swift](https://img.shields.io/badge/Swift-SwiftUI-orange)
 
 **AI-Powered Text Adventure Engine for macOS -- Every Playthrough Is Unique**
@@ -18,53 +19,76 @@ Written by Jordan Koch.
 
 ## Architecture
 
-```
-+---------------------------------------------------------------+
-|                       BlompieApp (SwiftUI)                    |
-|  .windowStyle(.hiddenTitleBar)  .defaultSize(1000x700)        |
-+---------------------------------------------------------------+
-        |                    |                    |
-        v                    v                    v
-+----------------+  +-----------------+  +-------------------+
-|  ContentView   |  | NovaAPIServer   |  | SharedDataManager |
-|  (main UI)     |  | port 37426      |  | App Group sync    |
-|  terminal look |  | REST endpoints  |  | -> WidgetKit      |
-+-------+--------+  +--------+--------+  +--------+----------+
-        |                     |                     |
-        v                     v                     |
-+-------+---------------------+-------+             |
-|            GameEngine               |             |
-|  - messages / conversation history  |             |
-|  - save slots (8) + autosave       |             |
-|  - undo stack (20 snapshots)       |             |
-|  - achievement tracker (10+)       |             |
-|  - NPC / inventory / location parse|             |
-|  - random-model-switch mode        |             |
-+-------+-------+-------+------------+             |
-        |       |       |                           |
-        v       v       v                           v
-+--------+ +--------+ +--------------------+ +-------------+
-| Ollama | |  MLX   | | AIBackendManager   | | Blompie     |
-| Service| | (local)| | (multi-backend     | | Widget      |
-| :11434 | |        | |  detection)        | | (WidgetKit) |
-+--------+ +--------+ +----+----+----+-----+ +-------------+
-                            |    |    |
-                            v    v    v
-                       +----+----+----+----+
-                       | Image Generation  |
-                       | SwarmUI :7801     |
-                       | ComfyUI :8188    |
-                       | A1111   :7860    |
-                       +-------------------+
+```mermaid
+graph TD
+    A[BlompieApp - SwiftUI] --> B[ContentView - Terminal UI]
+    A --> C[NovaAPIServer - port 37426]
+    A --> D[SharedDataManager - App Group]
 
-Security & Ethics Layer
-+-----------------------+------------------------------+
-| EthicalAIGuardian     | Content moderation, policy   |
-|                       | enforcement, usage logging   |
-+-----------------------+------------------------------+
-| Keychain Storage      | All API keys via Security    |
-| (macOS Keychain)      | framework -- never plaintext |
-+-----------------------+------------------------------+
+    B --> E[GameEngine]
+    C --> E
+
+    E --> F[OllamaService :11434]
+    E --> G[MLX - Apple Silicon]
+    E --> H[AIBackendManager]
+    D --> I[Blompie Widget - WidgetKit]
+
+    H --> J[SwarmUI :7801]
+    H --> K[ComfyUI :8188]
+    H --> L[A1111 :7860]
+
+    E --> M{NLP Parser}
+    M --> N[NPCs]
+    M --> O[Inventory]
+    M --> P[Locations]
+
+    style A fill:#2d2d2d,color:#00ff00,stroke:#00ff00
+    style E fill:#1a1a2e,color:#00ff00,stroke:#00ff00
+    style H fill:#1a1a2e,color:#ffaa00,stroke:#ffaa00
+    style I fill:#1a1a2e,color:#00aaff,stroke:#00aaff
+```
+
+### Data Flow
+
+```mermaid
+sequenceDiagram
+    participant Player
+    participant ContentView
+    participant GameEngine
+    participant OllamaService
+    participant NLPParser
+
+    Player->>ContentView: Type action
+    ContentView->>GameEngine: performAction()
+    GameEngine->>GameEngine: saveStateSnapshot (undo)
+    GameEngine->>OllamaService: chat(messages)
+    OllamaService-->>GameEngine: AI narrative response
+    GameEngine->>NLPParser: parseOllamaResponse()
+    NLPParser-->>GameEngine: narrative + actions + NPCs + items
+    GameEngine->>GameEngine: checkAchievements()
+    GameEngine-->>ContentView: Update UI
+    ContentView-->>Player: Display narrative + action buttons
+```
+
+### Security Layers
+
+```mermaid
+graph LR
+    A[User Input] --> B[EthicalAIGuardian]
+    B -->|Safe| C[AI Backend]
+    B -->|Blocked| D[Policy Violation]
+    C --> E[AI Response]
+    E --> B
+    B -->|Clean| F[Display]
+
+    G[API Keys] --> H[macOS Keychain]
+    H --> C
+
+    I[NovaAPI] --> J[127.0.0.1 only]
+
+    style B fill:#ff4444,color:white,stroke:#ff0000
+    style H fill:#44aa44,color:white,stroke:#00aa00
+    style J fill:#4444ff,color:white,stroke:#0000ff
 ```
 
 ---
@@ -343,6 +367,31 @@ EthicalAIGuardian.swift      -- Content moderation and policy enforcement
 **Widget not updating:**
 - Ensure the app and widget share the App Group `group.com.jkoch.blompie`.
 - Rebuild both targets in Xcode.
+
+---
+
+## Test Suite
+
+Blompie includes a comprehensive XCTest suite covering models, services,
+security, and integration.
+
+| Test File | Category | Tests | What It Covers |
+|-----------|----------|-------|----------------|
+| GameEngineTests | Unit | 18 | Models (GameMessage, GameState, SaveSlot, Achievement, DetailLevel, ToneStyle), settings persistence, theme management, undo, export, achievements |
+| OllamaServiceTests | Unit | 17 | OllamaMessage/Request/Response codable contracts, token/sec calculation, error descriptions |
+| ColorThemeTests | Unit | 15 | All 5 themes, CodableColor round-trips, uniqueness, SwiftUI conversion |
+| AIBackendManagerTests | Unit | 17 | 10 backend enum cases, AIError/ImageError descriptions, Keychain service name, singleton, image style/size |
+| SecurityTests | Security | 14 | No hardcoded API keys, no plaintext passwords, no personal emails, Keychain usage verified, loopback-only API, sandbox disabled, EthicalAIGuardian source analysis |
+| WidgetDataTests | Unit | 8 | WidgetGameData codable, achievement progress, AIBackendInfo, SharedDataManager singleton |
+| ResponseParsingTests | Functional | 23 | System prompt generation, detail/tone settings, model selection, random model mode, save/load/delete slots, streaming, temperature, undo stack |
+| NovaAPIServerTests | Integration | 4 | Port 37426, loopback binding, /api/status, /api/ping |
+
+**Run tests:**
+
+```bash
+cd Blompie
+xcodebuild -scheme Blompie -configuration Debug -destination 'platform=macOS' test
+```
 
 ---
 

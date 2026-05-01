@@ -23,6 +23,10 @@
 		A5DF490A8E2797529D368BA9 /* ModernDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = 835FF56C3D5E4159328CA7DC /* ModernDesign.swift */; };
 		AB36BC0F2CC4B7E282453FD8 /* SecurityUnified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 723D8AD6E6806DECCA2E2CF5 /* SecurityUnified.swift */; };
 		B5890F36441D8B47BF6B1F02 /* AIBackendManager+Generation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF58222E6296081CAAF7DD7F /* AIBackendManager+Generation.swift */; };
+		E1000001000000000000001 /* EthicalAIGuardian.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000002000000000000001 /* EthicalAIGuardian.swift */; };
+		E1000003000000000000001 /* AIBackendManager+Enhanced.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000004000000000000001 /* AIBackendManager+Enhanced.swift */; };
+		E1000005000000000000001 /* AIBackendManager+EthicalGuardian.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000006000000000000001 /* AIBackendManager+EthicalGuardian.swift */; };
+		E1000007000000000000001 /* AIBackendStatusMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000008000000000000001 /* AIBackendStatusMenu.swift */; };
 		B7F0A099C0D7ADC08D758492 /* VoiceUnified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97F04847A118BF7671E15896 /* VoiceUnified.swift */; };
 		B8BF6C5ABC4DFF0CAD855E02 /* ImageGenerationUnified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 632842B5EA413E1013690662 /* ImageGenerationUnified.swift */; };
 		C1000031000000000000001 /* SharedDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000032000000000000001 /* SharedDataManager.swift */; };
@@ -32,6 +36,14 @@
 		W1000009000000000000001 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = W1000010000000000000001 /* WidgetKit.framework */; };
 		W1000011000000000000001 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = W1000012000000000000001 /* SwiftUI.framework */; };
 		W1000015000000000000001 /* Blompie Widget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = W1000007000000000000001 /* Blompie Widget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		T1000001000000000000001 /* GameEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1000011000000000000001 /* GameEngineTests.swift */; };
+		T1000002000000000000001 /* OllamaServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1000012000000000000001 /* OllamaServiceTests.swift */; };
+		T1000003000000000000001 /* ColorThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1000013000000000000001 /* ColorThemeTests.swift */; };
+		T1000004000000000000001 /* SecurityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1000014000000000000001 /* SecurityTests.swift */; };
+		T1000005000000000000001 /* WidgetDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1000015000000000000001 /* WidgetDataTests.swift */; };
+		T1000006000000000000001 /* AIBackendManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1000016000000000000001 /* AIBackendManagerTests.swift */; };
+		T1000007000000000000001 /* ResponseParsingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1000017000000000000001 /* ResponseParsingTests.swift */; };
+		T1000008000000000000001 /* NovaAPIServerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1000018000000000000001 /* NovaAPIServerTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -41,6 +53,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = W1000008000000000000001;
 			remoteInfo = "Blompie Widget";
+		};
+		T1000009000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A1000021000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A1000017000000000000001;
+			remoteInfo = Blompie;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -80,6 +99,10 @@
 		C1000032000000000000001 /* SharedDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedDataManager.swift; sourceTree = "<group>"; };
 		C4D49A69F145E20405EA273E /* ImageGenerationView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImageGenerationView.swift; path = Blompie/ImageGenerationView.swift; sourceTree = "<group>"; };
 		EF58222E6296081CAAF7DD7F /* AIBackendManager+Generation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "AIBackendManager+Generation.swift"; sourceTree = "<group>"; };
+		E1000002000000000000001 /* EthicalAIGuardian.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EthicalAIGuardian.swift; sourceTree = "<group>"; };
+		E1000004000000000000001 /* AIBackendManager+Enhanced.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AIBackendManager+Enhanced.swift"; sourceTree = "<group>"; };
+		E1000006000000000000001 /* AIBackendManager+EthicalGuardian.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AIBackendManager+EthicalGuardian.swift"; sourceTree = "<group>"; };
+		E1000008000000000000001 /* AIBackendStatusMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIBackendStatusMenu.swift; sourceTree = "<group>"; };
 		W1000002000000000000001 /* BlompieWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlompieWidget.swift; sourceTree = "<group>"; };
 		W1000004000000000000001 /* WidgetData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetData.swift; sourceTree = "<group>"; };
 		W1000006000000000000001 /* SharedDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedDataManager.swift; sourceTree = "<group>"; };
@@ -88,6 +111,15 @@
 		W1000012000000000000001 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		W1000016000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		W1000017000000000000001 /* Blompie_Widget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Blompie_Widget.entitlements; sourceTree = "<group>"; };
+		T1000010000000000000001 /* BlompieTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BlompieTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		T1000011000000000000001 /* GameEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngineTests.swift; sourceTree = "<group>"; };
+		T1000012000000000000001 /* OllamaServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaServiceTests.swift; sourceTree = "<group>"; };
+		T1000013000000000000001 /* ColorThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorThemeTests.swift; sourceTree = "<group>"; };
+		T1000014000000000000001 /* SecurityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityTests.swift; sourceTree = "<group>"; };
+		T1000015000000000000001 /* WidgetDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataTests.swift; sourceTree = "<group>"; };
+		T1000016000000000000001 /* AIBackendManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIBackendManagerTests.swift; sourceTree = "<group>"; };
+		T1000017000000000000001 /* ResponseParsingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponseParsingTests.swift; sourceTree = "<group>"; };
+		T1000018000000000000001 /* NovaAPIServerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NovaAPIServerTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -104,6 +136,13 @@
 			files = (
 				W1000011000000000000001 /* SwiftUI.framework in Frameworks */,
 				W1000009000000000000001 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		T1000019000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -127,12 +166,17 @@
 			children = (
 				A1000015000000000000001 /* Blompie */,
 				W1000019000000000000001 /* Blompie Widget */,
+				T1000020000000000000001 /* BlompieTests */,
 				A1000016000000000000001 /* Products */,
 				W1000020000000000000001 /* Frameworks */,
 				6C32C458DA22F0B354DF014A /* ImageGenerationService.swift */,
 				C4D49A69F145E20405EA273E /* ImageGenerationView.swift */,
 				38A2E66196452BF3AA3F0F84 /* AIBackendManager.swift */,
 				EF58222E6296081CAAF7DD7F /* AIBackendManager+Generation.swift */,
+				E1000002000000000000001 /* EthicalAIGuardian.swift */,
+				E1000004000000000000001 /* AIBackendManager+Enhanced.swift */,
+				E1000006000000000000001 /* AIBackendManager+EthicalGuardian.swift */,
+				E1000008000000000000001 /* AIBackendStatusMenu.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -160,6 +204,7 @@
 			children = (
 				A1000011000000000000001 /* Blompie.app */,
 				W1000007000000000000001 /* Blompie Widget.appex */,
+				T1000010000000000000001 /* BlompieTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -182,6 +227,21 @@
 				W1000017000000000000001 /* Blompie_Widget.entitlements */,
 			);
 			path = "Blompie Widget";
+			sourceTree = "<group>";
+		};
+		T1000020000000000000001 /* BlompieTests */ = {
+			isa = PBXGroup;
+			children = (
+				T1000011000000000000001 /* GameEngineTests.swift */,
+				T1000012000000000000001 /* OllamaServiceTests.swift */,
+				T1000013000000000000001 /* ColorThemeTests.swift */,
+				T1000014000000000000001 /* SecurityTests.swift */,
+				T1000015000000000000001 /* WidgetDataTests.swift */,
+				T1000016000000000000001 /* AIBackendManagerTests.swift */,
+				T1000017000000000000001 /* ResponseParsingTests.swift */,
+				T1000018000000000000001 /* NovaAPIServerTests.swift */,
+			);
+			path = BlompieTests;
 			sourceTree = "<group>";
 		};
 		W1000020000000000000001 /* Frameworks */ = {
@@ -238,6 +298,24 @@
 			productReference = W1000007000000000000001 /* Blompie Widget.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		T1000021000000000000001 /* BlompieTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = T1000022000000000000001 /* Build configuration list for PBXNativeTarget "BlompieTests" */;
+			buildPhases = (
+				T1000023000000000000001 /* Sources */,
+				T1000019000000000000001 /* Frameworks */,
+				T1000024000000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				T1000025000000000000001 /* PBXTargetDependency */,
+			);
+			name = BlompieTests;
+			productName = BlompieTests;
+			productReference = T1000010000000000000001 /* BlompieTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -253,6 +331,10 @@
 					};
 					W1000008000000000000001 = {
 						CreatedOnToolsVersion = 15.0;
+					};
+					T1000021000000000000001 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = A1000017000000000000001;
 					};
 				};
 			};
@@ -275,6 +357,7 @@
 			targets = (
 				A1000017000000000000001 /* Blompie */,
 				W1000008000000000000001 /* Blompie Widget */,
+				T1000021000000000000001 /* BlompieTests */,
 			);
 		};
 /* End PBXProject section */
@@ -289,6 +372,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		W1000024000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		T1000024000000000000001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -333,6 +423,21 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		T1000023000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				T1000001000000000000001 /* GameEngineTests.swift in Sources */,
+				T1000002000000000000001 /* OllamaServiceTests.swift in Sources */,
+				T1000003000000000000001 /* ColorThemeTests.swift in Sources */,
+				T1000004000000000000001 /* SecurityTests.swift in Sources */,
+				T1000005000000000000001 /* WidgetDataTests.swift in Sources */,
+				T1000006000000000000001 /* AIBackendManagerTests.swift in Sources */,
+				T1000007000000000000001 /* ResponseParsingTests.swift in Sources */,
+				T1000008000000000000001 /* NovaAPIServerTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -340,6 +445,11 @@
 			isa = PBXTargetDependency;
 			target = W1000008000000000000001 /* Blompie Widget */;
 			targetProxy = W1000013000000000000001 /* PBXContainerItemProxy */;
+		};
+		T1000025000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A1000017000000000000001 /* Blompie */;
+			targetProxy = T1000009000000000000001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -580,6 +690,42 @@
 			};
 			name = Release;
 		};
+		T1000026000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = QRRCB8HB3W;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = net.digitalnoise.BlompieTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Blompie.app/Contents/MacOS/Blompie";
+			};
+			name = Debug;
+		};
+		T1000027000000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = QRRCB8HB3W;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = net.digitalnoise.BlompieTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Blompie.app/Contents/MacOS/Blompie";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -606,6 +752,15 @@
 			buildConfigurations = (
 				W1000025000000000000001 /* Debug */,
 				W1000026000000000000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		T1000022000000000000001 /* Build configuration list for PBXNativeTarget "BlompieTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				T1000026000000000000001 /* Debug */,
+				T1000027000000000000001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

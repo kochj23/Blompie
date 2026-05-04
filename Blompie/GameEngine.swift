@@ -91,11 +91,15 @@ class GameEngine: ObservableObject {
     @Published var randomModelMode: Bool = false
     @Published var actionsUntilModelSwitch: Int = 5
 
+    /// Maximum number of state snapshots to retain for undo history.
+    /// When exceeded, the oldest snapshots are dropped to prevent unbounded memory growth.
+    private let maxStateHistoryCapacity = 20
     var stateHistory: [GameSnapshot] = []
     private var actionsSinceModelSwitch: Int = 0
 
     private var conversationHistory: [OllamaMessage] = []
     private let ollamaService = OllamaService()
+    private let maxConversationHistorySize = 50
 
     init() {
         loadSettings()
@@ -119,23 +123,59 @@ class GameEngine: ObservableObject {
         saveSettings()
     }
 
-    func saveSettings() {
-        UserDefaults.standard.set(fontSize, forKey: "BlompieFontSize")
-        UserDefaults.standard.set(streamingEnabled, forKey: "BlompieStreamingEnabled")
-        UserDefaults.standard.set(temperature, forKey: "BlompieTemperature")
-        UserDefaults.standard.set(detailLevel.rawValue, forKey: "BlompieDetailLevel")
-        UserDefaults.standard.set(toneStyle.rawValue, forKey: "BlompieToneStyle")
-        UserDefaults.standard.set(autoSaveEnabled, forKey: "BlompieAutoSaveEnabled")
-        UserDefaults.standard.set(selectedModel, forKey: "BlompieSelectedModel")
-        UserDefaults.standard.set(randomModelMode, forKey: "BlompieRandomModelMode")
-        UserDefaults.standard.set(actionsUntilModelSwitch, forKey: "BlompieActionsUntilModelSwitch")
+    /// Consolidated settings struct for single JSON write to UserDefaults
+    private struct SettingsBundle: Codable {
+        var fontSize: Double
+        var streamingEnabled: Bool
+        var temperature: Double
+        var detailLevel: String
+        var toneStyle: String
+        var autoSaveEnabled: Bool
+        var selectedModel: String
+        var randomModelMode: Bool
+        var actionsUntilModelSwitch: Int
+        var theme: ColorTheme
+    }
 
-        if let encoded = try? JSONEncoder().encode(currentTheme) {
-            UserDefaults.standard.set(encoded, forKey: "BlompieColorTheme")
+    private static let settingsKey = "BlompieSettingsBundle"
+
+    func saveSettings() {
+        let bundle = SettingsBundle(
+            fontSize: fontSize,
+            streamingEnabled: streamingEnabled,
+            temperature: temperature,
+            detailLevel: detailLevel.rawValue,
+            toneStyle: toneStyle.rawValue,
+            autoSaveEnabled: autoSaveEnabled,
+            selectedModel: selectedModel,
+            randomModelMode: randomModelMode,
+            actionsUntilModelSwitch: actionsUntilModelSwitch,
+            theme: currentTheme
+        )
+
+        if let encoded = try? JSONEncoder().encode(bundle) {
+            UserDefaults.standard.set(encoded, forKey: Self.settingsKey)
         }
     }
 
     private func loadSettings() {
+        // Try loading from consolidated JSON bundle first
+        if let data = UserDefaults.standard.data(forKey: Self.settingsKey),
+           let bundle = try? JSONDecoder().decode(SettingsBundle.self, from: data) {
+            fontSize = bundle.fontSize > 0 ? bundle.fontSize : 14
+            streamingEnabled = bundle.streamingEnabled
+            temperature = bundle.temperature > 0 ? bundle.temperature : 1.3
+            if let detail = DetailLevel(rawValue: bundle.detailLevel) { detailLevel = detail }
+            if let tone = ToneStyle(rawValue: bundle.toneStyle) { toneStyle = tone }
+            autoSaveEnabled = bundle.autoSaveEnabled
+            selectedModel = bundle.selectedModel
+            randomModelMode = bundle.randomModelMode
+            actionsUntilModelSwitch = bundle.actionsUntilModelSwitch > 0 ? bundle.actionsUntilModelSwitch : 5
+            currentTheme = bundle.theme
+            return
+        }
+
+        // Legacy fallback: load from individual keys (one-time migration)
         fontSize = UserDefaults.standard.double(forKey: "BlompieFontSize")
         if fontSize == 0 { fontSize = 14 }
 
@@ -169,6 +209,9 @@ class GameEngine: ObservableObject {
            let theme = try? JSONDecoder().decode(ColorTheme.self, from: data) {
             currentTheme = theme
         }
+
+        // Migrate to new format
+        saveSettings()
     }
 
     func resetSettings() {
@@ -537,8 +580,8 @@ class GameEngine: ObservableObject {
         )
         stateHistory.append(snapshot)
 
-        // Keep last 20 snapshots
-        if stateHistory.count > 20 {
+        // Keep only the most recent snapshots to bound memory usage
+        while stateHistory.count > maxStateHistoryCapacity {
             stateHistory.removeFirst()
         }
     }
@@ -572,6 +615,39 @@ class GameEngine: ObservableObject {
         isLoading = false
     }
 
+    /// Trims conversation history to maxConversationHistorySize.
+    /// When exceeded, summarizes the oldest messages into a single system message
+    /// to preserve context while reducing token usage.
+    private func trimConversationHistory() {
+        guard conversationHistory.count > maxConversationHistorySize else { return }
+
+        // Keep the system prompt (first message if it's a system role)
+        let systemMessages = conversationHistory.prefix(while: { $0.role == "system" })
+        let nonSystemMessages = Array(conversationHistory.dropFirst(systemMessages.count))
+
+        // Summarize the oldest messages that exceed the limit
+        let excessCount = nonSystemMessages.count - maxConversationHistorySize
+        guard excessCount > 0 else { return }
+
+        let messagesToSummarize = Array(nonSystemMessages.prefix(excessCount))
+        let remainingMessages = Array(nonSystemMessages.dropFirst(excessCount))
+
+        // Build a summary of the trimmed messages
+        var summaryParts: [String] = []
+        for msg in messagesToSummarize {
+            let prefix = msg.role == "user" ? "Player" : "Game"
+            let truncated = String(msg.content.prefix(100))
+            summaryParts.append("\(prefix): \(truncated)")
+        }
+        let summaryText = "[Earlier conversation summary - \(messagesToSummarize.count) messages condensed]\n" +
+                          summaryParts.joined(separator: "\n")
+
+        let summaryMessage = OllamaMessage(role: "system", content: summaryText)
+
+        // Rebuild: system prompt + summary + recent messages
+        conversationHistory = Array(systemMessages) + [summaryMessage] + remainingMessages
+    }
+
     private func sendToOllama() async {
         ollamaService.model = selectedModel
         ollamaService.temperature = temperature
@@ -600,6 +676,9 @@ class GameEngine: ObservableObject {
                 role: "assistant",
                 content: fullResponse
             ))
+
+            // Trim conversation history if it exceeds max size
+            trimConversationHistory()
 
             streamingText = ""
 

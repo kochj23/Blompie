@@ -73,6 +73,41 @@ class AIBackendManager: ObservableObject {
     @Published var isAWSAvailable = false
     @Published var isIBMWatsonAvailable = false
 
+    // MARK: - Multi-model load balancer (shared cross-app design)
+
+    /// Toggle: spread work across ALL local models (Ollama + MLX).
+    @Published var useAllLocalModels = false
+    /// Toggle: include all OpenRouter frontier models in the pool.
+    @Published var enableAllFrontierModels = false
+    /// Toggle: include the Nova Gateway (optional; never required).
+    @Published var useNovaGateway = false
+
+    /// Nova Gateway base URL (OpenAI-compatible, inherits Nova's own routing).
+    @Published var novaGatewayServerURL = ModelRegistry.novaGatewayDefaultURL
+    /// OpenRouter base URL (already includes `/v1`).
+    @Published var openRouterServerURL = OpenRouterProvider.baseURL
+
+    /// OpenRouter model ids for the picker (falls back to the popular set).
+    @Published var openRouterModels: [String] = OpenRouterProvider.fallbackModels
+    /// Currently selected OpenRouter frontier model.
+    @Published var selectedOpenRouterModel: String = OpenRouterProvider.defaultModel
+
+    /// The models currently discovered for the balanced pool (all enabled sources).
+    @Published var discoveredModels: [DiscoveredModel] = []
+
+    /// Pure, network-free balancer that spreads work across the enabled pool.
+    let balancer = LoadBalancer()
+    /// Balancer policy (least-busy mirrors how Nova's gateway spreads load).
+    var balancerPolicy: BalancerPolicy = .leastBusy
+    /// Keychain-backed store for the single OpenRouter API key.
+    let openRouterKeychain = KeychainStore()
+
+    /// True when any load-balancing toggle is on, so generation should be
+    /// dispatched through the balanced path rather than the single-backend path.
+    var isBalancingEnabled: Bool {
+        useAllLocalModels || enableAllFrontierModels || useNovaGateway
+    }
+
     // MARK: - Backend Enum
 
     enum AIBackend: String, CaseIterable {
@@ -458,6 +493,14 @@ class AIBackendManager: ObservableObject {
            let backend = AIBackend(rawValue: backendRaw) {
             activeBackend = backend
         }
+
+        // Multi-model load balancer configuration
+        useAllLocalModels = defaults.bool(forKey: "AIBackend_UseAllLocalModels")
+        enableAllFrontierModels = defaults.bool(forKey: "AIBackend_EnableAllFrontierModels")
+        useNovaGateway = defaults.bool(forKey: "AIBackend_UseNovaGateway")
+        novaGatewayServerURL = defaults.string(forKey: "AIBackend_NovaGatewayURL") ?? ModelRegistry.novaGatewayDefaultURL
+        openRouterServerURL = defaults.string(forKey: "AIBackend_OpenRouterURL") ?? OpenRouterProvider.baseURL
+        selectedOpenRouterModel = defaults.string(forKey: "AIBackend_OpenRouterModel") ?? OpenRouterProvider.defaultModel
     }
 
     func saveConfiguration() {
@@ -484,6 +527,14 @@ class AIBackendManager: ObservableObject {
         Self.saveToKeychain(key: "AIBackend_IBM_URL", value: ibmWatsonURL, service: Self.keychainServiceName)
 
         defaults.set(activeBackend.rawValue, forKey: "AIBackend_Active")
+
+        // Multi-model load balancer configuration
+        defaults.set(useAllLocalModels, forKey: "AIBackend_UseAllLocalModels")
+        defaults.set(enableAllFrontierModels, forKey: "AIBackend_EnableAllFrontierModels")
+        defaults.set(useNovaGateway, forKey: "AIBackend_UseNovaGateway")
+        defaults.set(novaGatewayServerURL, forKey: "AIBackend_NovaGatewayURL")
+        defaults.set(openRouterServerURL, forKey: "AIBackend_OpenRouterURL")
+        defaults.set(selectedOpenRouterModel, forKey: "AIBackend_OpenRouterModel")
     }
 }
 

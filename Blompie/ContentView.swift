@@ -734,9 +734,11 @@ struct LoadDialogView: View {
 
 struct SettingsView: View {
     @ObservedObject var gameEngine: GameEngine
+    @ObservedObject private var aiBackend = AIBackendManager.shared
     @Binding var isPresented: Bool
     @State private var showResetConfirm = false
     @State private var showDeleteAllConfirm = false
+    @State private var openRouterKeyField = ""
 
     var body: some View {
         ScrollView {
@@ -793,6 +795,58 @@ struct SettingsView: View {
                         .onChange(of: gameEngine.streamingEnabled) { _ in
                             gameEngine.saveSettings()
                         }
+                }
+
+                // Multi-Model Load Balancing
+                SettingsSection(title: "Multi-Model Load Balancing", textColor: ModernColors.textPrimary) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle("Balance across all local models (Ollama + MLX)", isOn: $aiBackend.useAllLocalModels)
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundColor(ModernColors.textPrimary)
+                            .onChange(of: aiBackend.useAllLocalModels) { _ in
+                                aiBackend.saveConfiguration()
+                            }
+
+                        Toggle("Enable all frontier models (OpenRouter)", isOn: $aiBackend.enableAllFrontierModels)
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundColor(ModernColors.textPrimary)
+                            .onChange(of: aiBackend.enableAllFrontierModels) { newValue in
+                                aiBackend.saveConfiguration()
+                                if newValue { Task { await aiBackend.fetchOpenRouterModels() } }
+                            }
+
+                        Toggle("Use Nova Gateway (optional)", isOn: $aiBackend.useNovaGateway)
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundColor(ModernColors.textPrimary)
+                            .onChange(of: aiBackend.useNovaGateway) { _ in
+                                aiBackend.saveConfiguration()
+                            }
+
+                        // OpenRouter API key (single Keychain-backed key for all frontier models)
+                        if aiBackend.enableAllFrontierModels {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("OpenRouter API Key")
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundColor(ModernColors.textSecondary)
+                                HStack {
+                                    SecureField(aiBackend.hasOpenRouterKey ? "•••••• (saved)" : "sk-or-…", text: $openRouterKeyField)
+                                        .textFieldStyle(.roundedBorder)
+                                        .font(.system(.caption, design: .monospaced))
+                                    Button("Save") {
+                                        aiBackend.setOpenRouterAPIKey(openRouterKeyField)
+                                        openRouterKeyField = ""
+                                        Task { await aiBackend.fetchOpenRouterModels() }
+                                    }
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundColor(ModernColors.textPrimary)
+                                }
+                            }
+                        }
+
+                        Text("When enabled, story generation is spread across the selected pool. Nova is never required — a failed health check simply drops it. Ollama alone keeps working with all toggles off.")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(ModernColors.textSecondary)
+                    }
                 }
 
                 // Response Style

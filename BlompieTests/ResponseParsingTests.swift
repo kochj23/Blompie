@@ -20,6 +20,12 @@ final class ResponseParsingTests: XCTestCase {
     var engine: GameEngine!
 
     override func setUp() async throws {
+        // Reset persisted settings so the default-value assertions below are
+        // deterministic. Other test classes share UserDefaults.standard in the
+        // same test process and may have persisted a non-default settings
+        // bundle; clearing it guarantees GameEngine() falls back to code
+        // defaults (mirrors a clean first launch).
+        UserDefaults.standard.removeObject(forKey: "BlompieSettingsBundle")
         engine = GameEngine()
     }
 

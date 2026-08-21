@@ -395,7 +395,7 @@ final class ComprehensiveSecurityTests: XCTestCase {
 
     /// Helper to read all Swift source files
     private func allSwiftSourcePaths() throws -> [String] {
-        let projectRoot = "/Volumes/Data/xcode/Blompie"
+        let projectRoot = blompieProjectRoot
         let fm = FileManager.default
         let enumerator = fm.enumerator(atPath: projectRoot)!
         var paths: [String] = []
@@ -413,14 +413,14 @@ final class ComprehensiveSecurityTests: XCTestCase {
     }
 
     func testOllamaServiceUsesLocalhost() throws {
-        let path = "/Volumes/Data/xcode/Blompie/Blompie/OllamaService.swift"
+        let path = "\(blompieProjectRoot)/Blompie/OllamaService.swift"
         let content = try String(contentsOfFile: path, encoding: .utf8)
         XCTAssertTrue(content.contains("localhost:11434") || content.contains("127.0.0.1:11434"),
             "OllamaService must use localhost or loopback address")
     }
 
     func testNoSensitiveFileTypesCommitted() throws {
-        let projectRoot = "/Volumes/Data/xcode/Blompie"
+        let projectRoot = blompieProjectRoot
         let fm = FileManager.default
         let enumerator = fm.enumerator(atPath: projectRoot)!
         let sensitiveExtensions = [".p12", ".cer", ".mobileprovision", ".env"]
@@ -458,7 +458,7 @@ final class ComprehensiveSecurityTests: XCTestCase {
     }
 
     func testEthicalGuardianPermanentBlockKeyExists() throws {
-        let path = "/Volumes/Data/xcode/Blompie/EthicalAIGuardian.swift"
+        let path = "\(blompieProjectRoot)/EthicalAIGuardian.swift"
         let content = try String(contentsOfFile: path, encoding: .utf8)
         XCTAssertTrue(content.contains("AIGuardian_PermanentBlock"),
             "EthicalAIGuardian must use AIGuardian_PermanentBlock key for persistent blocking")
@@ -480,7 +480,7 @@ final class ComprehensiveSecurityTests: XCTestCase {
     }
 
     func testImageGenerationServiceDoesNotExposeAPIKeys() throws {
-        let path = "/Volumes/Data/xcode/Blompie/Blompie/ImageGenerationService.swift"
+        let path = "\(blompieProjectRoot)/Blompie/ImageGenerationService.swift"
         let content = try String(contentsOfFile: path, encoding: .utf8)
         // Should not contain hardcoded API keys
         let keyPatterns = ["sk-", "AKIA", "ghp_"]
@@ -492,14 +492,14 @@ final class ComprehensiveSecurityTests: XCTestCase {
 
     func testNovaAPIServerRetursCORSHeaders() throws {
         // Verify the http() helper includes CORS headers (needed for local dev)
-        let path = "/Volumes/Data/xcode/Blompie/Blompie/NovaAPIServer.swift"
+        let path = "\(blompieProjectRoot)/Blompie/NovaAPIServer.swift"
         let content = try String(contentsOfFile: path, encoding: .utf8)
         XCTAssertTrue(content.contains("Access-Control-Allow-Origin"),
             "NovaAPIServer should include CORS headers")
     }
 
     func testNovaAPIServerClosesConnections() throws {
-        let path = "/Volumes/Data/xcode/Blompie/Blompie/NovaAPIServer.swift"
+        let path = "\(blompieProjectRoot)/Blompie/NovaAPIServer.swift"
         let content = try String(contentsOfFile: path, encoding: .utf8)
         XCTAssertTrue(content.contains("Connection: close"),
             "NovaAPIServer must close connections after response")

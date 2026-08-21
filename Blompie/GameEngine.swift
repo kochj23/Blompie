@@ -655,7 +655,20 @@ class GameEngine: ObservableObject {
         var fullResponse = ""
 
         do {
-            if streamingEnabled {
+            // Multi-model load balancing: when any balancer toggle is enabled,
+            // route story/narration through balanced dispatch across the enabled
+            // pool (Ollama + MLX locals, OpenRouter frontier, optional Nova). This
+            // path is non-streaming; a nil result (balancing off / empty pool)
+            // falls through cleanly to the existing Ollama path.
+            let balanced = (try? await AIBackendManager.shared.generateBalancedNarration(
+                messages: conversationHistory,
+                temperature: temperature,
+                maxTokens: nil
+            )) ?? nil
+
+            if let balanced = balanced {
+                fullResponse = balanced
+            } else if streamingEnabled {
                 try await ollamaService.chatStreaming(messages: conversationHistory) { chunk in
                     Task { @MainActor in
                         fullResponse += chunk

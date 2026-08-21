@@ -12,13 +12,22 @@
 import XCTest
 @testable import Blompie
 
+/// Repository root derived from this test file's own location, so the source
+/// scans work under any checkout path (CI or local) rather than a hardcoded
+/// absolute path. `BlompieTests/SecurityTests.swift` → repo root. Shared
+/// (module-internal) across the BlompieTests source-scanning suites.
+let blompieProjectRoot: String = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()   // BlompieTests/
+    .deletingLastPathComponent()   // repo root
+    .path
+
 // MARK: - Source Code Security Scan
 
 final class SourceCodeSecurityTests: XCTestCase {
 
     /// Reads all .swift source files (excluding build, tests, and package caches)
     private func allSwiftSourcePaths() throws -> [String] {
-        let projectRoot = "/Volumes/Data/xcode/Blompie"
+        let projectRoot = blompieProjectRoot
         let fm = FileManager.default
         let enumerator = fm.enumerator(atPath: projectRoot)!
         var paths: [String] = []
@@ -118,7 +127,7 @@ final class SourceCodeSecurityTests: XCTestCase {
 
     func testKeychainUsedForSecrets() throws {
         // Verify AIBackendManager uses Keychain for API keys
-        let backendPath = "/Volumes/Data/xcode/Blompie/AIBackendManager.swift"
+        let backendPath = "\(blompieProjectRoot)/AIBackendManager.swift"
         let content = try String(contentsOfFile: backendPath, encoding: .utf8)
         XCTAssertTrue(content.contains("kSecClass"), "AIBackendManager must use Security framework Keychain")
         XCTAssertTrue(content.contains("SecItemAdd"), "Must use SecItemAdd for Keychain writes")
@@ -129,7 +138,7 @@ final class SourceCodeSecurityTests: XCTestCase {
 
     func testAPIKeysMigratedFromUserDefaults() throws {
         // Verify migration path exists
-        let backendPath = "/Volumes/Data/xcode/Blompie/AIBackendManager.swift"
+        let backendPath = "\(blompieProjectRoot)/AIBackendManager.swift"
         let content = try String(contentsOfFile: backendPath, encoding: .utf8)
         XCTAssertTrue(content.contains("migrateAPIKeysFromUserDefaults"),
             "Must have migration path from UserDefaults to Keychain")
@@ -137,7 +146,7 @@ final class SourceCodeSecurityTests: XCTestCase {
 
     func testNoAPIKeysInUserDefaults() throws {
         // After migration, API keys should NOT be in UserDefaults
-        let backendPath = "/Volumes/Data/xcode/Blompie/AIBackendManager.swift"
+        let backendPath = "\(blompieProjectRoot)/AIBackendManager.swift"
         let content = try String(contentsOfFile: backendPath, encoding: .utf8)
         // Check that loadConfiguration uses Keychain, not UserDefaults, for API keys
         XCTAssertTrue(content.contains("loadFromKeychain(key: \"AIBackend_OpenAI_Key\""))
@@ -146,7 +155,7 @@ final class SourceCodeSecurityTests: XCTestCase {
     }
 
     func testNovaAPIServerBindsToLoopback() throws {
-        let serverPath = "/Volumes/Data/xcode/Blompie/Blompie/NovaAPIServer.swift"
+        let serverPath = "\(blompieProjectRoot)/Blompie/NovaAPIServer.swift"
         let content = try String(contentsOfFile: serverPath, encoding: .utf8)
         XCTAssertTrue(content.contains("127.0.0.1"),
             "NovaAPIServer must bind to loopback only (127.0.0.1)")
@@ -157,7 +166,7 @@ final class SourceCodeSecurityTests: XCTestCase {
 
     func testAppSandboxDisabled() throws {
         // Verify entitlements file has sandbox disabled (per CLAUDE.md policy)
-        let projectRoot = "/Volumes/Data/xcode/Blompie"
+        let projectRoot = blompieProjectRoot
         let fm = FileManager.default
         let enumerator = fm.enumerator(atPath: projectRoot)!
         var foundEntitlements = false
@@ -184,13 +193,13 @@ final class SourceCodeSecurityTests: XCTestCase {
 final class EthicalAIGuardianSourceTests: XCTestCase {
 
     func testEthicalGuardianFileExists() {
-        let path = "/Volumes/Data/xcode/Blompie/EthicalAIGuardian.swift"
+        let path = "\(blompieProjectRoot)/EthicalAIGuardian.swift"
         XCTAssertTrue(FileManager.default.fileExists(atPath: path),
             "EthicalAIGuardian.swift must exist in project")
     }
 
     func testEthicalGuardianHasContentModeration() throws {
-        let path = "/Volumes/Data/xcode/Blompie/EthicalAIGuardian.swift"
+        let path = "\(blompieProjectRoot)/EthicalAIGuardian.swift"
         let content = try String(contentsOfFile: path, encoding: .utf8)
         XCTAssertTrue(content.contains("detectProhibitedContent"),
             "Must have prohibited content detection")
@@ -203,14 +212,14 @@ final class EthicalAIGuardianSourceTests: XCTestCase {
     }
 
     func testEthicalGuardianCannotBeDisabled() throws {
-        let path = "/Volumes/Data/xcode/Blompie/EthicalAIGuardian.swift"
+        let path = "\(blompieProjectRoot)/EthicalAIGuardian.swift"
         let content = try String(contentsOfFile: path, encoding: .utf8)
         XCTAssertTrue(content.contains("isEnabled = true"),
             "Guardian must default to enabled and cannot be disabled")
     }
 
     func testEthicalGuardianUsesContentHashing() throws {
-        let path = "/Volumes/Data/xcode/Blompie/EthicalAIGuardian.swift"
+        let path = "\(blompieProjectRoot)/EthicalAIGuardian.swift"
         let content = try String(contentsOfFile: path, encoding: .utf8)
         XCTAssertTrue(content.contains("SHA256"),
             "Must hash content for privacy (not store plaintext)")
@@ -219,7 +228,7 @@ final class EthicalAIGuardianSourceTests: XCTestCase {
     }
 
     func testEthicalGuardianHasCrisisResources() throws {
-        let path = "/Volumes/Data/xcode/Blompie/EthicalAIGuardian.swift"
+        let path = "\(blompieProjectRoot)/EthicalAIGuardian.swift"
         let content = try String(contentsOfFile: path, encoding: .utf8)
         XCTAssertTrue(content.contains("988"),
             "Must include Suicide Prevention Lifeline number (988)")
@@ -228,7 +237,7 @@ final class EthicalAIGuardianSourceTests: XCTestCase {
     }
 
     func testEthicalGuardianBlocksAfterRepeatedViolations() throws {
-        let path = "/Volumes/Data/xcode/Blompie/EthicalAIGuardian.swift"
+        let path = "\(blompieProjectRoot)/EthicalAIGuardian.swift"
         let content = try String(contentsOfFile: path, encoding: .utf8)
         XCTAssertTrue(content.contains("criticalCount >= 3"),
             "Must permanently block after 3 critical violations")

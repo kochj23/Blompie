@@ -175,9 +175,13 @@ final class GameEngineTests: XCTestCase {
     var engine: GameEngine!
 
     override func setUp() async throws {
-        engine = GameEngine()
-        // Clear test state from UserDefaults
+        // Clear persisted settings BEFORE constructing the engine so it loads
+        // code defaults (mirrors a clean first launch). Must include the
+        // consolidated "BlompieSettingsBundle" key that GameEngine reads first,
+        // otherwise a bundle persisted by another test (shared UserDefaults in
+        // the same process) leaks in and breaks the default-value assertions.
         let testKeys = [
+            "BlompieSettingsBundle",
             "BlompieFontSize", "BlompieStreamingEnabled", "BlompieTemperature",
             "BlompieDetailLevel", "BlompieToneStyle", "BlompieAutoSaveEnabled",
             "BlompieSelectedModel", "BlompieRandomModelMode",
@@ -187,6 +191,7 @@ final class GameEngineTests: XCTestCase {
         for key in testKeys {
             UserDefaults.standard.removeObject(forKey: key)
         }
+        engine = GameEngine()
     }
 
     // MARK: Initial State

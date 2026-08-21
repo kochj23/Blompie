@@ -82,7 +82,7 @@ final class NovaAPIServerTests: XCTestCase {
 
     func testServerOnlyBindsToLoopback() throws {
         // Verify at code level that server uses 127.0.0.1
-        let path = "/Volumes/Data/xcode/Blompie/Blompie/NovaAPIServer.swift"
+        let path = "\(blompieProjectRoot)/Blompie/NovaAPIServer.swift"
         let content = try String(contentsOfFile: path, encoding: .utf8)
         XCTAssertTrue(content.contains("host: \"127.0.0.1\""),
             "Server must bind to 127.0.0.1 only")

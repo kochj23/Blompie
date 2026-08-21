@@ -128,7 +128,7 @@ final class AIBackendManagerTests: XCTestCase {
     func testKeychainServiceName() {
         // Verify the Keychain service name is correct for Blompie
         // This is tested indirectly -- the manager must use "com.jordankoch.Blompie"
-        let backendPath = "/Volumes/Data/xcode/Blompie/AIBackendManager.swift"
+        let backendPath = "\(blompieProjectRoot)/AIBackendManager.swift"
         do {
             let content = try String(contentsOfFile: backendPath, encoding: .utf8)
             XCTAssertTrue(content.contains("com.jordankoch.Blompie"),

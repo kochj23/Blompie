@@ -490,12 +490,14 @@ final class ComprehensiveSecurityTests: XCTestCase {
         }
     }
 
-    func testNovaAPIServerRetursCORSHeaders() throws {
-        // Verify the http() helper includes CORS headers (needed for local dev)
+    func testNovaAPIServerDoesNotEmitWildcardCORS() throws {
+        // SECURITY: the loopback server has only native (Nova) clients, never browsers.
+        // A wildcard Access-Control-Allow-Origin would let any website the user visits
+        // read responses / drive the server, so it must NOT be present.
         let path = "\(blompieProjectRoot)/Blompie/NovaAPIServer.swift"
         let content = try String(contentsOfFile: path, encoding: .utf8)
-        XCTAssertTrue(content.contains("Access-Control-Allow-Origin"),
-            "NovaAPIServer should include CORS headers")
+        XCTAssertFalse(content.contains("Access-Control-Allow-Origin"),
+            "NovaAPIServer must not emit a wildcard CORS header")
     }
 
     func testNovaAPIServerClosesConnections() throws {

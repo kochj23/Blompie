@@ -39,6 +39,17 @@ class NovaAPIServer {
     // Each session has its own GameEngine instance
     private var sessions: [String: GameEngine] = [:]
 
+    /// Local-only anti-CSRF bearer token (not a secret — just prevents drive-by requests from browser JS)
+    private let apiToken: String = {
+        let key = "NovaAPIToken"
+        if let existing = UserDefaults.standard.string(forKey: key), !existing.isEmpty {
+            return existing
+        }
+        let token = UUID().uuidString
+        UserDefaults.standard.set(token, forKey: key)
+        return token
+    }()
+
     private init() {}
 
     func start() {
@@ -72,7 +83,17 @@ class NovaAPIServer {
     // MARK: - Router
 
     private func route(_ req: NovaRequest) async -> String {
-        if req.method == "OPTIONS" { return http(200, "") }
+        // Reject non-loopback Host headers (anti DNS-rebinding — only native loopback clients allowed)
+        guard isLoopbackHost(req.headers["host"]) else {
+            return json(403, ["error": "Forbidden"] as [String: Any])
+        }
+
+        // Require bearer token for all state-changing requests (anti-CSRF)
+        if req.method == "POST" || req.method == "DELETE" {
+            guard let auth = req.headers["authorization"], auth == "Bearer \(apiToken)" else {
+                return json(401, ["error": "Unauthorized — missing or invalid Bearer token"] as [String: Any])
+            }
+        }
 
         let parts = req.path.split(separator: "/").map(String.init)
 
@@ -281,7 +302,7 @@ class NovaAPIServer {
     // MARK: - HTTP helpers
 
     private struct NovaRequest {
-        let method: String; let path: String; let body: String
+        let method: String; let path: String; let body: String; let headers: [String: String]
         func bodyJSON() -> [String: Any]? {
             guard let d = body.data(using: .utf8), !body.isEmpty else { return nil }
             return try? JSONSerialization.jsonObject(with: d) as? [String: Any]
@@ -303,7 +324,19 @@ class NovaAPIServer {
             method = tokens[0]
             path = tokens[1].components(separatedBy: "?").first ?? tokens[1]
             body = rawBody
+            headers = hdrs
         }
+    }
+
+    private func isLoopbackHost(_ host: String?) -> Bool {
+        guard let host, !host.isEmpty else { return false }
+        let hostname: String
+        if host.hasPrefix("[") {
+            hostname = String(host.dropFirst().prefix(while: { $0 != "]" }))
+        } else {
+            hostname = host.split(separator: ":").first.map(String.init) ?? host
+        }
+        return hostname == "127.0.0.1" || hostname == "localhost" || hostname == "::1"
     }
 
     private func json(_ s: Int, _ d: [String: Any]) -> String {
@@ -317,7 +350,7 @@ class NovaAPIServer {
         return http(s, body, "application/json")
     }
     private func http(_ s: Int, _ body: String, _ ct: String = "text/plain") -> String {
-        let st = [200:"OK",201:"Created",400:"Bad Request",404:"Not Found",429:"Too Many Requests",500:"Internal Server Error"][s] ?? "Unknown"
-        return "HTTP/1.1 \(s) \(st)\r\nContent-Type: \(ct); charset=utf-8\r\nContent-Length: \(body.utf8.count)\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n\(body)"
+        let st = [200:"OK",201:"Created",400:"Bad Request",401:"Unauthorized",403:"Forbidden",404:"Not Found",429:"Too Many Requests",500:"Internal Server Error"][s] ?? "Unknown"
+        return "HTTP/1.1 \(s) \(st)\r\nContent-Type: \(ct); charset=utf-8\r\nContent-Length: \(body.utf8.count)\r\nConnection: close\r\n\r\n\(body)"
     }
 }

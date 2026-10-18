@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Performance improvements
 - Additional features based on community feedback
 
+## [1.1.2] (build 5) - 2026-10-18
+
+### Added
+- Play history in the Nova Games DB (schema `play`, role `blompie_mac`): a session per sitting (new adventure or loaded save; the previous one ends `completed`, app quit ends it `quit`), a `start` event, a `scene` event for the opening narration and a `turn` event per action (action <= 200 chars, narrator excerpt <= 400 chars, achievements unlocked). `last_seen_at`, `actions` and a capped summary (turns, achievements, places/items/NPCs, last scene, recent moments) are updated every turn.
+- `PlayLogger` (in-memory queue, background drain, backoff 5 s to 5 min, rejected rows dropped, fail open, disabled under XCTest) and `PostgresPlaySink` (PostgresNIO, SCRAM, TLS 1.2+ verify-full against the bundled games-pg CA). Modeled on GTNW's Games DB store.
+- One-time DB password hand-off over SSH (`remote.sh getpw blompie_mac`, BatchMode) into Blompie's Data Protection keychain (service `nova-games-pg`, account `blompie_mac`), run automatically on first launch and from Settings > Play History.
+- `keychain-access-groups` entitlement; PostgresNIO package; `tools/add_play_logging.rb` (xcodeproj gem) links the package, sources, CA resource and tests.
+
+### Tests
+- `PlayLoggerTests.swift`: 39 tests in all 7 categories (Unit 10, Security 8, Retry 6, Performance 2, Integration 3, Functional 6, Frame 4). Suite: 310 tests, all passing.
+
 ## [1.1.1] (build 4) - 2026-10-17
 
 ### Security

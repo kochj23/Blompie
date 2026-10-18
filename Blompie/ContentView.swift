@@ -9,7 +9,7 @@ import SwiftUI
 import AppKit
 
 struct ContentView: View {
-    @StateObject private var gameEngine = GameEngine()
+    @StateObject private var gameEngine = GameEngine(playLogger: PlayLogger.shared)
     @State private var showSaveDialog = false
     @State private var showLoadDialog = false
     @State private var showSettings = false
@@ -983,6 +983,11 @@ struct SettingsView: View {
                     }
                 }
 
+                // Play History (Nova Games DB)
+                SettingsSection(title: "Play History", textColor: ModernColors.textPrimary) {
+                    PlayHistorySettingsView()
+                }
+
                 // About
                 SettingsSection(title: "About", textColor: ModernColors.textPrimary) {
                     VStack(alignment: .leading, spacing: 8) {
@@ -1075,4 +1080,37 @@ struct SettingsSection<Content: View>: View {
 
 #Preview {
     ContentView()
+}
+
+
+// MARK: - Play History Settings
+
+/// Status of play-session logging to the Nova Games DB, plus the one-time password hand-off.
+struct PlayHistorySettingsView: View {
+    @ObservedObject private var logger = PlayLogger.shared
+    @State private var setupMessage = ""
+    @State private var working = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(logger.status.text)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundColor(ModernColors.textSecondary)
+            if logger.isEnabled {
+                Button(working ? "Fetching..." : "Fetch DB password from core3") {
+                    working = true
+                    logger.runSetup { msg in
+                        DispatchQueue.main.async { setupMessage = msg; working = false }
+                    }
+                }
+                .disabled(working)
+                .font(.system(.body, design: .monospaced))
+                if !setupMessage.isEmpty {
+                    Text(setupMessage)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(ModernColors.textSecondary)
+                }
+            }
+        }
+    }
 }

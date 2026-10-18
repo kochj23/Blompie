@@ -6,6 +6,12 @@
 	<false/>
 	<key>com.apple.security.network.client</key>
 	<true/>
+	<!-- Data Protection keychain group for the Games DB play-history credential (blompie_mac):
+	     readable only by Blompie signed by the team, with no per-build keychain prompts. -->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)net.digitalnoise.Blompie</string>
+	</array>
 	<key>com.apple.security.application-groups</key>
 	<array>
 		<string>group.com.jkoch.blompie</string>

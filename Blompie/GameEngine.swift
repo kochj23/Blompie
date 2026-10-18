@@ -101,7 +101,21 @@ class GameEngine: ObservableObject {
     private let ollamaService = OllamaService()
     private let maxConversationHistorySize = 50
 
-    init() {
+    // Play-history logging (Nova Games DB). Only the app window's engine has a logger;
+    // NovaAPIServer sessions and tests create engines without one.
+    let playLogger: PlayLogger?
+    private(set) var playTurn = 0
+    private var playSlot = ""
+    private var playStartedFrom = ""
+    private var pendingPlayAction: String?
+    private var turnUnlocks: [String] = []
+    private var sessionUnlocks: [String] = []
+    private var lastNarration = ""
+    private var playMoments: [[String: Any]] = []
+    static let maxPlayMoments = 30
+
+    init(playLogger: PlayLogger? = nil) {
+        self.playLogger = playLogger
         loadSettings()
         initializeAchievements()
         Task {
@@ -338,6 +352,8 @@ class GameEngine: ObservableObject {
                 isUnlocked: true,
                 unlockDate: Date()
             )
+            turnUnlocks.append(achievements[index].title)
+            sessionUnlocks.append(achievements[index].title)
             addMessage("")
             addMessage("🏆 Achievement Unlocked: \(achievements[index].title)")
             addMessage("")
@@ -510,6 +526,8 @@ class GameEngine: ObservableObject {
         locationHistory = []
         stateHistory = []
 
+        beginPlaySession(from: "new", slot: "", start: ["setting": "new adventure"])
+
         addMessage("=== BLOMPIE ===")
         addMessage("A Text Adventure Powered by Ollama")
         addMessage("")
@@ -524,6 +542,8 @@ class GameEngine: ObservableObject {
     func performAction(_ action: String) {
         // Save state before action for undo
         saveStateSnapshot()
+
+        pendingPlayAction = action
 
         // Track action
         actionHistory.append(action)
@@ -696,7 +716,8 @@ class GameEngine: ObservableObject {
             streamingText = ""
 
             // Parse response to extract narrative and actions
-            parseOllamaResponse(fullResponse)
+            let narrative = parseOllamaResponse(fullResponse)
+            recordPlayNarration(narrative, failed: false)
 
             if autoSaveEnabled {
                 saveGame(toSlot: "autosave")
@@ -706,6 +727,7 @@ class GameEngine: ObservableObject {
             SharedDataManager.shared.updateFromGameEngine(self)
         } catch {
             streamingText = ""
+            recordPlayNarration("", failed: true)
             addMessage("=== ERROR ===")
             if let ollamaError = error as? OllamaError {
                 addMessage(ollamaError.errorDescription ?? error.localizedDescription)
@@ -720,7 +742,8 @@ class GameEngine: ObservableObject {
         }
     }
 
-    private func parseOllamaResponse(_ response: String) {
+    @discardableResult
+    private func parseOllamaResponse(_ response: String) -> String {
         let lines = response.components(separatedBy: .newlines)
         var narrativeLines: [String] = []
         var actions: [String] = []
@@ -825,6 +848,7 @@ class GameEngine: ObservableObject {
 
         // Track NPCs, inventory, locations, and check achievements
         parseAndTrackGameElements(response)
+        return narrative
     }
 
     private func addMessage(_ text: String) {
@@ -857,6 +881,8 @@ class GameEngine: ObservableObject {
         messages = state.messages
         conversationHistory = state.conversationHistory
         currentActions = state.currentActions
+        beginPlaySession(from: "load", slot: slotName,
+                         start: ["slot": slotName, "resumed": true, "messages": state.messages.count])
     }
 
     func getSaveSlots() -> [SaveSlot] {
@@ -884,6 +910,76 @@ class GameEngine: ObservableObject {
         if let encoded = try? JSONEncoder().encode(slots) {
             UserDefaults.standard.set(encoded, forKey: "BlompieSaveSlots")
         }
+    }
+
+    // MARK: - Play history
+
+    /// New adventure or loaded save: a new play session (the open one ends as `completed`).
+    func beginPlaySession(from origin: String, slot: String, start: [String: Any]) {
+        guard let playLogger else { return }
+        playTurn = 0
+        playSlot = PlayJSON.clean(slot, max: 64)
+        playStartedFrom = origin
+        pendingPlayAction = nil
+        turnUnlocks = []
+        sessionUnlocks = []
+        lastNarration = ""
+        playMoments = []
+        var detail = start
+        detail["model"] = PlayJSON.clean(selectedModel, max: 64)
+        detail["tone"] = toneStyle.rawValue
+        detail["detail"] = detailLevel.rawValue
+        playLogger.beginSession(start: detail, summary: playSummary())
+    }
+
+    /// After the narrator answered (or failed): a `turn` event for a player action, or a `scene` event for the
+    /// opening narration. Never throws, never waits.
+    func recordPlayNarration(_ narrative: String, failed: Bool) {
+        defer { turnUnlocks = [] }
+        guard let playLogger else { pendingPlayAction = nil; return }
+        let excerpt = PlayJSON.clean(narrative, max: 400)
+        if !excerpt.isEmpty { lastNarration = excerpt }
+        if let action = pendingPlayAction {
+            pendingPlayAction = nil
+            playTurn += 1
+            let act = PlayJSON.clean(action, max: 200)
+            var detail: [String: Any] = ["turn": playTurn, "action": act, "narration": excerpt]
+            if !turnUnlocks.isEmpty { detail["achievements"] = turnUnlocks }
+            if failed { detail["failed"] = true }
+            if !failed {
+                playMoments.append(["turn": playTurn, "action": PlayJSON.clean(act, max: 120),
+                                    "narration": PlayJSON.clean(excerpt, max: 200)])
+                if playMoments.count > Self.maxPlayMoments { playMoments.removeFirst(playMoments.count - Self.maxPlayMoments) }
+            }
+            playLogger.record(kind: "turn", detail: detail, action: true, summary: playSummary())
+        } else if !failed && !excerpt.isEmpty {
+            var detail: [String: Any] = ["narration": excerpt]
+            if !turnUnlocks.isEmpty { detail["achievements"] = turnUnlocks }
+            playLogger.record(kind: "scene", detail: detail, action: false, summary: playSummary())
+        }
+    }
+
+    /// Self-contained session summary for Nova's reporter. Lists are capped; no paths or personal data.
+    func playSummary() -> [String: Any] {
+        var s: [String: Any] = [
+            "turns": playTurn,
+            "started_from": playStartedFrom,
+            "model": PlayJSON.clean(selectedModel, max: 64),
+            "tone": toneStyle.rawValue,
+            "detail": detailLevel.rawValue,
+            "achievements_unlocked": PlayJSON.cap(sessionUnlocks, count: 20),
+            "achievements_total": achievements.filter(\.isUnlocked).count,
+            "places": PlayJSON.cap(locationHistory, count: 40),
+            "items": PlayJSON.cap(inventory, count: 40),
+            "npcs": PlayJSON.cap(metNPCs, count: 40),
+            "places_count": locationHistory.count,
+            "items_count": inventory.count,
+            "npcs_count": metNPCs.count,
+            "moments": playMoments,
+        ]
+        if !playSlot.isEmpty { s["slot"] = playSlot }
+        if !lastNarration.isEmpty { s["last_scene"] = lastNarration }
+        return s
     }
 
     // MARK: - Export

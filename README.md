@@ -4,8 +4,8 @@
 ![Platform](https://img.shields.io/badge/platform-macOS%2014.0%2B-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Swift](https://img.shields.io/badge/Swift-SwiftUI-orange)
-![Version](https://img.shields.io/badge/version-1.1.1%20(build%204)-informational)
-![Tests](https://img.shields.io/badge/tests-271%20passing-brightgreen)
+![Version](https://img.shields.io/badge/version-1.1.2%20(build%205)-informational)
+![Tests](https://img.shields.io/badge/tests-310%20passing-brightgreen)
 
 **An AI-powered text adventure for macOS. Every playthrough is generated on the fly.**
 
@@ -67,6 +67,23 @@ Written by Jordan Koch ([@kochj23](https://github.com/kochj23)).
 - The autosave is restored automatically on launch; if none exists a new game starts.
 - Export the full transcript as a plain-text file via a save panel.
 - Game state, saves, settings and achievements are stored in `UserDefaults` (settings as one consolidated JSON bundle, with one-time migration from the older per-key format).
+
+### Play History (Nova Games DB)
+
+Since 1.1.2 Blompie records what you played in the shared play-history schema `play` of the Nova Games Postgres on core3, so Nova can write about your adventures. Only play rows are written; saves stay in `UserDefaults`.
+
+| When | What is written |
+|---|---|
+| New adventure, or loading any save (including the autosave at launch) | A new `play.sessions` row (`game` `blompie-mac`, `client` `mac`, `player` `default`) and a `start` event (`setting` or `slot`/`resumed`, model, tone, detail). The previously open session ends with outcome `completed`. |
+| Opening narration | A `scene` event with a narrator excerpt (max 400 chars). |
+| Every turn | A `turn` event: turn number, your action (max 200 chars), narrator excerpt (max 400 chars), achievements unlocked that turn, `failed: true` if the model call failed. The session's `last_seen_at`, `actions` and running `summary` are updated. |
+| App quit | The session ends with outcome `quit` (best effort, up to 2 s). |
+
+The session `summary` holds: turns, started_from, slot, model, tone, detail, achievements unlocked this session and total, places / items / NPCs (last 40 each, plus counts), the last scene and the last 30 turns as `moments`. Blompie has no win condition, so there is no `game_over` event and no score.
+
+Logging never blocks a turn: rows go into a small in-memory queue (max 500, oldest events dropped first) drained in the background. If the DB is unreachable the queue is retried with backoff (5 s doubling to 5 min); rows the DB rejects are dropped. Under XCTest the logger has no DB connection. NovaAPIServer sessions are not logged.
+
+Connection: `192.168.1.5:5433`, database `games`, LAN role `blompie_mac` (insert/update/select of its own `play` rows only), SCRAM over TLS 1.2+ with `verify-full` against the bundled games-pg CA (`Blompie/Storage/games-pg-ca.crt`, server name `nova-core3`). The password lives only in Blompie's Data Protection keychain (service `nova-games-pg`, account `blompie_mac`). On first launch, if it is missing, Blompie fetches it once with `ssh -o BatchMode=yes kochj@192.168.1.5 sudo bash /srv/games/repo/deploy/remote.sh getpw blompie_mac` (stdout straight into the Keychain, never printed). **Settings > Play History** shows the status and has a "Fetch DB password from core3" button to repeat the hand-off.
 
 ### Interface (ContentView, Design/ModernDesign)
 
@@ -162,7 +179,7 @@ graph TD
     WSDM --> AG
 
     subgraph Tests["BlompieTests (target: unit tests)"]
-        T[271 XCTest cases]
+        T[310 XCTest cases]
     end
     T -.-> App
 ```
@@ -180,6 +197,8 @@ graph TD
 | `Blompie/ColorTheme.swift` | Theme definitions and `CodableColor` |
 | `Blompie/TokenMeterView.swift` | Circular tokens/sec gauge component |
 | `Blompie/SharedDataManager.swift` | Writes widget data to the App Group |
+| `Blompie/Storage/PlayLogger.swift` | Play-history sessions/events queue, backoff, Keychain credentials, SSH password hand-off |
+| `Blompie/Storage/PostgresPlaySink.swift` | PostgresNIO writer for `play.sessions` / `play.events` (TLS verify-full) |
 | `Blompie/Design/ModernDesign.swift` | Shared palette, glass modifiers, animated background, gauges |
 | `Blompie/Services/ModelRegistry.swift` | Model discovery, pool assembly, `LoadBalancer` |
 | `Blompie/Services/OpenRouterProvider.swift` | OpenRouter constants, OpenAI-compatible request builder, `FailoverPlanner` |
@@ -360,8 +379,8 @@ Unknown routes return 404; unknown session ids return 404 `Session not found`. S
 - **No secrets in the repo.** Nothing is hardcoded; the `SourceCodeSecurityTests` suite scans the sources for hardcoded keys and passwords.
 - **Local API hardened** as described above: loopback bind, bearer token on every route, browser and preflight refusal, Host allow-list against DNS rebinding, constant-time token compare, request and command size limits, no CORS.
 - **Local by default.** With the balancer toggles off, all inference stays on your Mac (Ollama on localhost). OpenRouter is used only when you enable it and supply a key; Nova Gateway only when you enable it.
-- **No telemetry.** Blompie has no analytics or phone-home code.
-- **Entitlements.** Network client access and the `group.com.jkoch.blompie` App Group. The app is not sandboxed (it needs to launch `mlx_lm.generate` and read the Hugging Face cache).
+- **No telemetry.** Blompie has no analytics or phone-home code. Play history goes only to Jordan's own LAN Games DB (see [Play History](#play-history-nova-games-db)) as the restricted role `blompie_mac`, over verified TLS, with the password in the Data Protection keychain.
+- **Entitlements.** Network client access, the `group.com.jkoch.blompie` App Group, and a `keychain-access-groups` entry for the Games DB credential. The app is not sandboxed (it needs to launch `mlx_lm.generate` and read the Hugging Face cache).
 
 See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 
@@ -384,7 +403,7 @@ Apple Silicon with 16 GB RAM is recommended for larger local models.
 
 ### From DMG
 
-1. Download `Blompie-v1.1.1-build4.dmg` (current version **1.1.1, build 4**) from [Releases](https://github.com/kochj23/Blompie/releases).
+1. Download `Blompie-v1.1.2-build5.dmg` (current version **1.1.2, build 5**) from [Releases](https://github.com/kochj23/Blompie/releases).
 2. Open the DMG and drag **Blompie** to `/Applications`.
 3. Start Ollama and pull a model:
 
@@ -422,18 +441,18 @@ Or open `Blompie.xcodeproj` in Xcode and press Cmd+R. The scheme builds the app 
 xcodebuild -project Blompie.xcodeproj -scheme Blompie test
 ```
 
-The suite contains **271 XCTest cases, all passing**, in 7 categories. Network-dependent logic (pool parsing, balancing, failover, the API gate) is factored into pure functions so it is tested without live backends.
+The suite contains **310 XCTest cases, all passing**, in 7 categories. Network-dependent logic (pool parsing, balancing, failover, the API gate) is factored into pure functions so it is tested without live backends.
 
 | Category | Classes (test count) | Total | Covers |
 |---|---|---|---|
-| Security | SourceCodeSecurityTests (8), NovaAPIGateTests (10), InputSanitizationTests (3), EthicalAIGuardianSourceTests (6), ComprehensiveSecurityTests (9) | 36 | No hardcoded secrets, API gate (browser/Host/token/size), input limits, Keychain usage |
-| Performance | PerformanceTests (8) | 8 | Gate throughput, constant-time compare independent of mismatch position, Ollama tag and OpenRouter model parsing, pool de-dup scaling, balancer selection; `XCTest measure` blocks with time budgets |
-| Retry | RetryTests (9) | 9 | `LoadBalancer.firstSuccess` failover, unhealthy models never attempted, all-fail rethrow, in-flight bookkeeping, round-robin fairness after failover, re-authentication on retry after 429 |
-| Unit | ComprehensiveUnitTests (30), AIBackendEnumTests (6), AIErrorTests (6), ImageStyleTests (3), ImageGenerationErrorTests (6), GameModelTests (14), ColorThemeTests (16), OllamaServiceTests (17), LoadBalancerTests (20), WidgetDataTests (9), AIBackendManagerTests (5) | 132 | Models, enums, errors, themes, Ollama Codable contracts and tokens/sec, registry and balancer, widget data |
-| Integration | ComprehensiveIntegrationTests (9), NovaAPIServerTests (7) | 16 | Component wiring, API server configuration |
-| Functional | ComprehensiveFunctionalTests (14), GameEngineTests (12), ResponseParsingTests (26) | 52 | Engine behavior, settings, undo, achievements, save/load, action parsing |
-| Frame | ComprehensiveFrameTests (18) | 18 | Framework scaffolding: singletons and engines initialize with correct defaults (GameEngine, AIBackendManager, SharedDataManager, URLs, achievements) |
-| **Total** | 25 classes | **271** | |
+| Security | SourceCodeSecurityTests (8), NovaAPIGateTests (10), InputSanitizationTests (3), EthicalAIGuardianSourceTests (6), ComprehensiveSecurityTests (9), PlayLoggerSecurityTests (8) | 44 | No hardcoded secrets, API gate (browser/Host/token/size), input limits, Keychain usage; play logging: no DB writes under XCTest, games-only role, verify-full TLS, bound parameters, BatchMode hand-off, sanitized/bounded JSON |
+| Performance | PerformanceTests (8), PlayLoggerPerformanceTests (2) | 10 | Gate throughput, constant-time compare independent of mismatch position, Ollama tag and OpenRouter model parsing, pool de-dup scaling, balancer selection; `XCTest measure` blocks with time budgets; play-log turn recording and summary encoding |
+| Retry | RetryTests (9), PlayLoggerRetryTests (6) | 15 | `LoadBalancer.firstSuccess` failover, unhealthy models never attempted, all-fail rethrow, in-flight bookkeeping, round-robin fairness after failover, re-authentication on retry after 429; play-log offline queue, backoff, recovery without duplicates, rejected rows dropped, bounded queue |
+| Unit | ComprehensiveUnitTests (30), AIBackendEnumTests (6), AIErrorTests (6), ImageStyleTests (3), ImageGenerationErrorTests (6), GameModelTests (14), ColorThemeTests (16), OllamaServiceTests (17), LoadBalancerTests (20), WidgetDataTests (9), AIBackendManagerTests (5), PlayLoggerUnitTests (10) | 142 | Models, enums, errors, themes, Ollama Codable contracts and tokens/sec, registry and balancer, widget data, play-log JSON/backoff/coalescing |
+| Integration | ComprehensiveIntegrationTests (9), NovaAPIServerTests (7), PlayLoggerIntegrationTests (3) | 19 | Component wiring, API server configuration, GameEngine + PlayLogger + in-memory DB |
+| Functional | ComprehensiveFunctionalTests (14), GameEngineTests (12), ResponseParsingTests (26), PlayLoggerFunctionalTests (6) | 58 | Engine behavior, settings, undo, achievements, save/load, action parsing, turn/scene/quit logging |
+| Frame | ComprehensiveFrameTests (18), PlayLoggerFrameTests (4) | 22 | Framework scaffolding: singletons and engines initialize with correct defaults (GameEngine, AIBackendManager, SharedDataManager, URLs, achievements, play-log contract constants) |
+| **Total** | 32 classes | **310** | |
 
 Test sources live in `BlompieTests/`.
 
@@ -462,6 +481,7 @@ Test sources live in `BlompieTests/`.
 | Creativity (temperature) | Settings | 1.3 on first run |
 | Detail / Tone | Settings | Normal / Balanced |
 | Auto-save | Settings | On |
+| Play history | Settings > Play History (status, password hand-off) | On; DB password fetched once on first launch |
 | Random model mode | Settings, every 3/5/10/15 actions | Off, 5 |
 | Theme | Settings > Color Theme | Classic Green |
 | Font size | Settings slider or `Ctrl+Shift+=` / `Ctrl+Shift+-` | 14 pt |

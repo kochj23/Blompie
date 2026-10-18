@@ -11,6 +11,8 @@ import SwiftUI
 struct BlompieApp: App {
     init() {
         NovaAPIServer.shared.start()
+        // Play history: end the session on quit; one-time DB password hand-off if missing.
+        PlayLogger.shared.activate()
     }
 
     var body: some Scene {

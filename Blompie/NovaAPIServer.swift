@@ -166,7 +166,7 @@ class NovaAPIServer {
         // ── Meta ──────────────────────────────────────────────────────────
         case ("GET", "/api/status"):
             return json(200, [
-                "status": "running", "app": "Blompie", "version": "1.2",
+                "status": "running", "app": "Blompie", "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
                 "port": "\(port)", "uptimeSeconds": Int(Date().timeIntervalSince(startTime)),
                 "activeSessions": sessions.count
             ] as [String: Any])

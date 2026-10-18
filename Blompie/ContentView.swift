@@ -986,7 +986,7 @@ struct SettingsView: View {
                 // About
                 SettingsSection(title: "About", textColor: ModernColors.textPrimary) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Blompie v1.3.0")
+                        Text("Blompie v\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"))")
                             .font(.system(.body, design: .monospaced))
                             .foregroundColor(ModernColors.textPrimary)
 

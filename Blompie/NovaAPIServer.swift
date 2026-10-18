@@ -21,12 +21,87 @@
 //  Action response is async — Ollama generates the reply.
 //  Use polling on /state or /history to detect when the response arrives.
 //
+//  Security (2026-10): loopback only; every request needs
+//    Authorization: Bearer <token>
+//  where the token lives in the login Keychain (service "net.digitalnoise.blompie.api",
+//  account "api-token"; created on first launch if missing). Read it with
+//    security find-generic-password -s net.digitalnoise.blompie.api -a api-token -w
+//  Browser requests are refused: any Origin header -> 403, Host must be 127.0.0.1/localhost
+//  (DNS-rebinding guard), no CORS headers, no preflight. Requests are capped at 64 KB.
+//
 //  Created by Jordan Koch on 2026.
 //  Copyright © 2026 Jordan Koch. All rights reserved.
 //
 
 import Foundation
 import Network
+import Security
+
+/// Bearer token for the local API, kept in the login Keychain.
+enum NovaAPIToken {
+    static let service = "net.digitalnoise.blompie.api"
+    static let account = "api-token"
+
+    static func load() -> String? {
+        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                kSecAttrService as String: service, kSecAttrAccount as String: account,
+                                kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
+        var out: AnyObject?
+        guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess, let d = out as? Data,
+              let t = String(data: d, encoding: .utf8), t.count >= 32 else { return nil }
+        return t
+    }
+
+    /// Existing token, or a new random 256-bit one saved to the Keychain. nil = Keychain unavailable (API stays off).
+    static func loadOrCreate() -> String? {
+        if let t = load() { return t }
+        var bytes = [UInt8](repeating: 0, count: 32)
+        guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { return nil }
+        let token = bytes.map { String(format: "%02x", $0) }.joined()
+        let add: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                  kSecAttrService as String: service, kSecAttrAccount as String: account,
+                                  kSecAttrLabel as String: "Blompie local API token",
+                                  kSecValueData as String: Data(token.utf8)]
+        return SecItemAdd(add as CFDictionary, nil) == errSecSuccess ? token : nil
+    }
+}
+
+/// Request gate for the local API. Pure, so it can be unit tested.
+enum NovaAPIGate {
+    static let maxRequestBytes = 65_536
+    static let maxCommandChars = 500
+    static let allowedHosts: Set<String> = ["127.0.0.1", "localhost", "::1"]
+
+    /// nil = allowed, otherwise (status, message).
+    static func check(method: String, headers: [String: String], token: String?, port: UInt16) -> (Int, String)? {
+        if headers["origin"] != nil || headers["sec-fetch-site"] != nil {
+            return (403, "browser requests are not allowed")
+        }
+        if method == "OPTIONS" { return (403, "no CORS") }
+        guard allowedHosts.contains(hostname(headers["host"] ?? "")) else { return (403, "bad Host header") }
+        guard let token, !token.isEmpty else { return (503, "API token unavailable (Keychain)") }
+        let auth = headers["authorization"] ?? ""
+        guard auth.hasPrefix("Bearer "), constantTimeEqual(String(auth.dropFirst(7)), token) else {
+            return (401, "missing or bad bearer token")
+        }
+        return nil
+    }
+
+    /// "127.0.0.1:37426" -> "127.0.0.1", "[::1]:37426" -> "::1", "localhost" -> "localhost"
+    static func hostname(_ host: String) -> String {
+        let h = host.lowercased()
+        if h.hasPrefix("[") { return String(h.dropFirst().prefix(while: { $0 != "]" })) }
+        return h.split(separator: ":", maxSplits: 1).first.map(String.init) ?? h
+    }
+
+    static func constantTimeEqual(_ a: String, _ b: String) -> Bool {
+        let x = Array(a.utf8), y = Array(b.utf8)
+        guard x.count == y.count else { return false }
+        var diff: UInt8 = 0
+        for i in 0..<x.count { diff |= x[i] ^ y[i] }
+        return diff == 0
+    }
+}
 
 @MainActor
 class NovaAPIServer {
@@ -38,21 +113,13 @@ class NovaAPIServer {
     // Active adventure sessions keyed by UUID string
     // Each session has its own GameEngine instance
     private var sessions: [String: GameEngine] = [:]
-
-    /// Local-only anti-CSRF bearer token (not a secret — just prevents drive-by requests from browser JS)
-    private let apiToken: String = {
-        let key = "NovaAPIToken"
-        if let existing = UserDefaults.standard.string(forKey: key), !existing.isEmpty {
-            return existing
-        }
-        let token = UUID().uuidString
-        UserDefaults.standard.set(token, forKey: key)
-        return token
-    }()
+    private var token: String?
 
     private init() {}
 
     func start() {
+        token = NovaAPIToken.loadOrCreate()
+        if token == nil { print("NovaAPI [Blompie]: no Keychain token; API disabled"); return }
         do {
             let params = NWParameters.tcp
             params.requiredLocalEndpoint = NWEndpoint.hostPort(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: port)!)
@@ -72,6 +139,11 @@ class NovaAPIServer {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 var b = buf; if let d = data { b.append(d) }
+                if b.count > NovaAPIGate.maxRequestBytes {
+                    c.send(content: self.http(413, "request too large").data(using: .utf8),
+                           completion: .contentProcessed { _ in c.cancel() })
+                    return
+                }
                 if let req = NovaRequest(b) {
                     let resp = await self.route(req)
                     c.send(content: resp.data(using: .utf8), completion: .contentProcessed { _ in c.cancel() })
@@ -83,16 +155,8 @@ class NovaAPIServer {
     // MARK: - Router
 
     private func route(_ req: NovaRequest) async -> String {
-        // Reject non-loopback Host headers (anti DNS-rebinding — only native loopback clients allowed)
-        guard isLoopbackHost(req.headers["host"]) else {
-            return json(403, ["error": "Forbidden"] as [String: Any])
-        }
-
-        // Require bearer token for all state-changing requests (anti-CSRF)
-        if req.method == "POST" || req.method == "DELETE" {
-            guard let auth = req.headers["authorization"], auth == "Bearer \(apiToken)" else {
-                return json(401, ["error": "Unauthorized — missing or invalid Bearer token"] as [String: Any])
-            }
+        if let (status, message) = NovaAPIGate.check(method: req.method, headers: req.headers, token: token, port: port) {
+            return json(status, ["error": message] as [String: Any])
         }
 
         let parts = req.path.split(separator: "/").map(String.init)
@@ -220,8 +284,9 @@ class NovaAPIServer {
         // POST action — send a command to the adventure
         case ("POST", "/action"):
             guard let body = req.bodyJSON(),
-                  let command = body["command"] as? String, !command.isEmpty else {
-                return json(400, ["error": "'command' string required in body"] as [String: Any])
+                  let command = body["command"] as? String, !command.isEmpty,
+                  command.count <= NovaAPIGate.maxCommandChars else {
+                return json(400, ["error": "'command' string (1-\(NovaAPIGate.maxCommandChars) chars) required in body"] as [String: Any])
             }
 
             guard !engine.isLoading else {
@@ -301,7 +366,7 @@ class NovaAPIServer {
 
     // MARK: - HTTP helpers
 
-    private struct NovaRequest {
+    struct NovaRequest {
         let method: String; let path: String; let body: String; let headers: [String: String]
         func bodyJSON() -> [String: Any]? {
             guard let d = body.data(using: .utf8), !body.isEmpty else { return nil }
@@ -328,17 +393,6 @@ class NovaAPIServer {
         }
     }
 
-    private func isLoopbackHost(_ host: String?) -> Bool {
-        guard let host, !host.isEmpty else { return false }
-        let hostname: String
-        if host.hasPrefix("[") {
-            hostname = String(host.dropFirst().prefix(while: { $0 != "]" }))
-        } else {
-            hostname = host.split(separator: ":").first.map(String.init) ?? host
-        }
-        return hostname == "127.0.0.1" || hostname == "localhost" || hostname == "::1"
-    }
-
     private func json(_ s: Int, _ d: [String: Any]) -> String {
         guard let data = try? JSONSerialization.data(withJSONObject: d, options: .prettyPrinted),
               let body = String(data: data, encoding: .utf8) else { return http(500, "") }
@@ -350,7 +404,9 @@ class NovaAPIServer {
         return http(s, body, "application/json")
     }
     private func http(_ s: Int, _ body: String, _ ct: String = "text/plain") -> String {
-        let st = [200:"OK",201:"Created",400:"Bad Request",401:"Unauthorized",403:"Forbidden",404:"Not Found",429:"Too Many Requests",500:"Internal Server Error"][s] ?? "Unknown"
-        return "HTTP/1.1 \(s) \(st)\r\nContent-Type: \(ct); charset=utf-8\r\nContent-Length: \(body.utf8.count)\r\nConnection: close\r\n\r\n\(body)"
+        let st = [200:"OK",201:"Created",400:"Bad Request",401:"Unauthorized",403:"Forbidden",404:"Not Found",
+                  413:"Payload Too Large",429:"Too Many Requests",500:"Internal Server Error",503:"Service Unavailable"][s] ?? "Unknown"
+        // No CORS headers on purpose: this API is for local agents, never for web pages.
+        return "HTTP/1.1 \(s) \(st)\r\nContent-Type: \(ct); charset=utf-8\r\nContent-Length: \(body.utf8.count)\r\nX-Content-Type-Options: nosniff\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n\(body)"
     }
 }

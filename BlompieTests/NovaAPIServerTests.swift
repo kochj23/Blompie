@@ -44,7 +44,7 @@ final class NovaAPIServerTests: XCTestCase {
         }
 
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await URLSession.shared.data(for: authed(url))
             let httpResponse = response as! HTTPURLResponse
             XCTAssertEqual(httpResponse.statusCode, 200)
 
@@ -67,7 +67,7 @@ final class NovaAPIServerTests: XCTestCase {
         }
 
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await URLSession.shared.data(for: authed(url))
             let httpResponse = response as! HTTPURLResponse
             XCTAssertEqual(httpResponse.statusCode, 200)
 
@@ -75,6 +75,31 @@ final class NovaAPIServerTests: XCTestCase {
             XCTAssertEqual(json["pong"] as? String, "true")
         } catch {
             print("Note: Ping test skipped (server not running): \(error)")
+        }
+    }
+
+    private func authed(_ url: URL) -> URLRequest {
+        var r = URLRequest(url: url)
+        if let t = NovaAPIToken.load() { r.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization") }
+        return r
+    }
+
+    // MARK: - Integration: auth enforced over the wire
+
+    func testUnauthenticatedAndBrowserRequestsRefused() async throws {
+        NovaAPIServer.shared.start()
+        try await Task.sleep(nanoseconds: 200_000_000)
+        let url = URL(string: "http://127.0.0.1:37426/api/status")!
+        do {
+            let (_, r1) = try await URLSession.shared.data(from: url)
+            XCTAssertEqual((r1 as! HTTPURLResponse).statusCode, 401)
+            var req = authed(url)
+            req.setValue("https://evil.example", forHTTPHeaderField: "Origin")
+            let (_, r2) = try await URLSession.shared.data(for: req)
+            XCTAssertEqual((r2 as! HTTPURLResponse).statusCode, 403)
+            XCTAssertNil((r2 as! HTTPURLResponse).value(forHTTPHeaderField: "Access-Control-Allow-Origin"))
+        } catch {
+            print("Note: auth integration test skipped (server not running): \(error)")
         }
     }
 

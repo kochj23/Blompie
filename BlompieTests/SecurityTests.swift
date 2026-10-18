@@ -275,3 +275,70 @@ final class InputSanitizationTests: XCTestCase {
         XCTAssertEqual(decoded.text.count, 100_000)
     }
 }
+
+
+// MARK: - Local API gate (port 37426): token, Origin, Host, size
+
+final class NovaAPIGateTests: XCTestCase {
+    private let token = String(repeating: "ab", count: 32)
+    private func hdrs(_ extra: [String: String] = [:]) -> [String: String] {
+        var h = ["host": "127.0.0.1:37426", "authorization": "Bearer \(token)"]
+        for (k, v) in extra { h[k] = v }
+        return h
+    }
+
+    // Security
+    func testValidLocalRequestPasses() {
+        XCTAssertNil(NovaAPIGate.check(method: "GET", headers: hdrs(), token: token, port: 37426))
+        XCTAssertNil(NovaAPIGate.check(method: "POST", headers: hdrs(["host": "localhost:37426"]), token: token, port: 37426))
+    }
+    func testMissingOrWrongTokenRejected() {
+        var h = hdrs(); h.removeValue(forKey: "authorization")
+        XCTAssertEqual(NovaAPIGate.check(method: "GET", headers: h, token: token, port: 37426)?.0, 401)
+        XCTAssertEqual(NovaAPIGate.check(method: "GET", headers: hdrs(["authorization": "Bearer nope"]), token: token, port: 37426)?.0, 401)
+        XCTAssertEqual(NovaAPIGate.check(method: "GET", headers: hdrs(["authorization": token]), token: token, port: 37426)?.0, 401)
+    }
+    func testBrowserRequestsRejected() {
+        XCTAssertEqual(NovaAPIGate.check(method: "POST", headers: hdrs(["origin": "https://evil.example"]), token: token, port: 37426)?.0, 403)
+        XCTAssertEqual(NovaAPIGate.check(method: "GET", headers: hdrs(["sec-fetch-site": "cross-site"]), token: token, port: 37426)?.0, 403)
+        XCTAssertEqual(NovaAPIGate.check(method: "OPTIONS", headers: hdrs(), token: token, port: 37426)?.0, 403)
+    }
+    func testDNSRebindingHostRejected() {
+        XCTAssertEqual(NovaAPIGate.check(method: "GET", headers: hdrs(["host": "evil.example:37426"]), token: token, port: 37426)?.0, 403)
+        XCTAssertEqual(NovaAPIGate.check(method: "GET", headers: hdrs(["host": "127.0.0.1.evil.example"]), token: token, port: 37426)?.0, 403)
+        var h = hdrs(); h.removeValue(forKey: "host")
+        XCTAssertEqual(NovaAPIGate.check(method: "GET", headers: h, token: token, port: 37426)?.0, 403)
+    }
+    func testIPv6LoopbackHostAllowed() {
+        XCTAssertNil(NovaAPIGate.check(method: "GET", headers: hdrs(["host": "[::1]:37426"]), token: token, port: 37426))
+        XCTAssertEqual(NovaAPIGate.hostname("LOCALHOST:37426"), "localhost")
+    }
+    func testNoTokenMeansServiceUnavailable() {
+        XCTAssertEqual(NovaAPIGate.check(method: "GET", headers: hdrs(), token: nil, port: 37426)?.0, 503)
+    }
+    func testSourceHasNoWildcardCORSAndBindsLoopback() throws {
+        let src = try String(contentsOfFile: "/Volumes/Data/xcode/Blompie/Blompie/NovaAPIServer.swift", encoding: .utf8)
+        XCTAssertFalse(src.contains("Access-Control-Allow-Origin"))
+        XCTAssertTrue(src.contains("host: \"127.0.0.1\""))
+        XCTAssertTrue(src.contains("NovaAPIGate.check("))
+    }
+
+    // Unit
+    func testConstantTimeEqual() {
+        XCTAssertTrue(NovaAPIGate.constantTimeEqual("abc", "abc"))
+        XCTAssertFalse(NovaAPIGate.constantTimeEqual("abc", "abd"))
+        XCTAssertFalse(NovaAPIGate.constantTimeEqual("abc", "abcd"))
+    }
+    func testLimits() {
+        XCTAssertEqual(NovaAPIGate.maxRequestBytes, 65_536)
+        XCTAssertLessThanOrEqual(NovaAPIGate.maxCommandChars, 500)
+    }
+
+    // Performance
+    func testGateIsCheap() {
+        let h = hdrs()
+        measure {
+            for _ in 0..<10_000 { _ = NovaAPIGate.check(method: "GET", headers: h, token: token, port: 37426) }
+        }
+    }
+}

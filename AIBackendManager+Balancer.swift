@@ -206,32 +206,16 @@ extension AIBackendManager {
         guard !pool.isEmpty else { return nil }
 
         let health = await healthMap(for: pool)
-        var remaining = pool
-        var lastError: Error?
-
-        while let choice = balancer.next(pool: remaining, health: health, policy: balancerPolicy) {
-            balancer.checkOut(choice.id)
-            do {
-                let result = try await dispatchBalanced(
-                    model: choice,
-                    prompt: prompt,
-                    systemPrompt: systemPrompt,
-                    messages: messages,
-                    temperature: temperature,
-                    maxTokens: maxTokens
-                )
-                balancer.checkIn(choice.id)
-                return result
-            } catch {
-                balancer.checkIn(choice.id)
-                lastError = error
-                remaining.removeAll { $0.id == choice.id }
-                continue
-            }
+        return try await balancer.firstSuccess(pool: pool, health: health, policy: balancerPolicy) { choice in
+            try await dispatchBalanced(
+                model: choice,
+                prompt: prompt,
+                systemPrompt: systemPrompt,
+                messages: messages,
+                temperature: temperature,
+                maxTokens: maxTokens
+            )
         }
-
-        if let lastError = lastError { throw lastError }
-        return nil
     }
 
     /// Route a single balancer-selected model through the appropriate backend

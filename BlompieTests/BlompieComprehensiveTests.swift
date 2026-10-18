@@ -158,137 +158,6 @@ final class ComprehensiveUnitTests: XCTestCase {
         XCTAssertEqual(decoded.description, "A test capability")
     }
 
-    // MARK: EthicalAIGuardian Model Types
-
-    func testViolationCategoryDescriptions() {
-        // Every category must have a non-empty description
-        let categories: [ViolationCategory] = [
-            .illegalActivity, .harmfulContent, .hateSpeech,
-            .misinformation, .privacyViolation, .harassment,
-            .fraud, .other
-        ]
-        for cat in categories {
-            XCTAssertFalse(cat.description.isEmpty,
-                "\(cat.rawValue) must have a description")
-        }
-    }
-
-    func testViolationSeverityColors() {
-        XCTAssertEqual(ViolationSeverity.critical.color, "red")
-        XCTAssertEqual(ViolationSeverity.high.color, "orange")
-        XCTAssertEqual(ViolationSeverity.medium.color, "yellow")
-        XCTAssertEqual(ViolationSeverity.low.color, "gray")
-    }
-
-    func testViolationSeverityCodable() throws {
-        for severity in [ViolationSeverity.critical, .high, .medium, .low] {
-            let data = try JSONEncoder().encode(severity)
-            let decoded = try JSONDecoder().decode(ViolationSeverity.self, from: data)
-            XCTAssertEqual(decoded, severity)
-        }
-    }
-
-    func testViolationCategoryCodable() throws {
-        let categories: [ViolationCategory] = [
-            .illegalActivity, .harmfulContent, .hateSpeech,
-            .misinformation, .privacyViolation, .harassment,
-            .fraud, .other
-        ]
-        for cat in categories {
-            let data = try JSONEncoder().encode(cat)
-            let decoded = try JSONDecoder().decode(ViolationCategory.self, from: data)
-            XCTAssertEqual(decoded, cat)
-        }
-    }
-
-    func testEnforcementActionCodable() throws {
-        let actions: [EnforcementAction] = [
-            .blockCompletely, .blockAndRefer, .warnAndLog,
-            .requireAcknowledgment, .logOnly
-        ]
-        for action in actions {
-            let data = try JSONEncoder().encode(action)
-            let decoded = try JSONDecoder().decode(EnforcementAction.self, from: data)
-            XCTAssertEqual(decoded, action)
-        }
-    }
-
-    func testViolationStatisticsPercentages() {
-        let stats = ViolationStatistics(
-            totalRequests: 100,
-            safeRequests: 90,
-            violations: 10,
-            blocked: 3,
-            criticalViolations: 1,
-            highViolations: 2
-        )
-        XCTAssertEqual(stats.safePercentage, 90.0, accuracy: 0.01)
-        XCTAssertEqual(stats.violationPercentage, 10.0, accuracy: 0.01)
-    }
-
-    func testViolationStatisticsZeroTotal() {
-        let stats = ViolationStatistics(
-            totalRequests: 0,
-            safeRequests: 0,
-            violations: 0,
-            blocked: 0,
-            criticalViolations: 0,
-            highViolations: 0
-        )
-        XCTAssertEqual(stats.safePercentage, 100.0, accuracy: 0.01,
-            "Zero total requests should report 100% safe")
-        XCTAssertEqual(stats.violationPercentage, 0.0, accuracy: 0.01)
-    }
-
-    func testPolicyViolationCodable() throws {
-        let violation = PolicyViolation(
-            category: .illegalActivity,
-            severity: .critical,
-            description: "Test violation",
-            detectedPattern: "test.*pattern",
-            action: .blockCompletely,
-            timestamp: Date()
-        )
-        let data = try JSONEncoder().encode(violation)
-        let decoded = try JSONDecoder().decode(PolicyViolation.self, from: data)
-        XCTAssertEqual(decoded.category, .illegalActivity)
-        XCTAssertEqual(decoded.severity, .critical)
-        XCTAssertEqual(decoded.description, "Test violation")
-        XCTAssertEqual(decoded.action, .blockCompletely)
-    }
-
-    func testUsageContextCodable() throws {
-        let contexts: [UsageContext] = [
-            .textGeneration, .imageGeneration, .summarization,
-            .translation, .analysis, .chat, .email, .news,
-            .system, .unknown
-        ]
-        for ctx in contexts {
-            let data = try JSONEncoder().encode(ctx)
-            let decoded = try JSONDecoder().decode(UsageContext.self, from: data)
-            XCTAssertEqual(decoded, ctx)
-        }
-    }
-
-    func testUsageContextFromAppNameBlompie() {
-        let ctx = UsageContext.fromAppName("Blompie")
-        XCTAssertEqual(ctx, .imageGeneration)
-    }
-
-    func testUsageContextFromAppNameUnknown() {
-        let ctx = UsageContext.fromAppName("SomethingRandom")
-        XCTAssertEqual(ctx, .unknown)
-    }
-
-    func testLogCategoryCodable() throws {
-        let categories: [LogCategory] = [.safe, .violation, .systemEvent]
-        for cat in categories {
-            let data = try JSONEncoder().encode(cat)
-            let decoded = try JSONDecoder().decode(LogCategory.self, from: data)
-            XCTAssertEqual(decoded, cat)
-        }
-    }
-
     // MARK: AIBackendManager.AIBackend Equatable
 
     func testAIBackendEquality() {
@@ -508,13 +377,12 @@ final class ComprehensiveSecurityTests: XCTestCase {
     func testNoInsecureHTTPURLsForExternalServices() throws {
         let files = try allSwiftSourcePaths()
         // http:// is fine for localhost, but external URLs should use HTTPS
-        let httpPattern = "http://[^l1]" // skip localhost and 127.0.0.1
 
         for path in files {
             if path.contains("Test") { continue }
             let content = try String(contentsOfFile: path, encoding: .utf8)
             let lines = content.components(separatedBy: .newlines)
-            for (lineNum, line) in lines.enumerated() {
+            for line in lines {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
                 // Skip comments
                 if trimmed.hasPrefix("//") || trimmed.hasPrefix("/*") || trimmed.hasPrefix("*") {
@@ -711,7 +579,6 @@ final class ComprehensiveFunctionalTests: XCTestCase {
     func testStartNewGameResetsState() {
         // Simulate some state
         engine.startNewGame()
-        let firstGameMessageCount = engine.messages.count
 
         // Start again
         engine.startNewGame()
@@ -796,7 +663,6 @@ final class ComprehensiveFunctionalTests: XCTestCase {
     func testUndoLastActionRestoresState() {
         engine.startNewGame()
         let messagesBeforeAction = engine.messages.count
-        let actionsBeforeAction = engine.currentActions
 
         // Simulate saving a snapshot (like performAction does)
         let snapshot = GameSnapshot(

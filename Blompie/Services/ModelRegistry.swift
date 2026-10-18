@@ -220,6 +220,35 @@ final class LoadBalancer {
         inFlight[modelId] = max(0, current - 1)
     }
 
+    /// Failover dispatch: try healthy models in balancer order, dropping each one
+    /// whose `attempt` throws and retrying with the next, until one succeeds.
+    /// Every attempt is checked out/in so `.leastBusy` stays accurate even on
+    /// failure. Returns `nil` when the pool has no healthy model; rethrows the
+    /// last error when every healthy model failed. Each model is tried at most once.
+    func firstSuccess<T>(
+        pool: [DiscoveredModel],
+        health: [String: Bool] = [:],
+        policy: BalancerPolicy,
+        attempt: (DiscoveredModel) async throws -> T
+    ) async throws -> T? {
+        var remaining = pool
+        var lastError: Error?
+        while let choice = next(pool: remaining, health: health, policy: policy) {
+            checkOut(choice.id)
+            do {
+                let result = try await attempt(choice)
+                checkIn(choice.id)
+                return result
+            } catch {
+                checkIn(choice.id)
+                lastError = error
+                remaining.removeAll { $0.id == choice.id }
+            }
+        }
+        if let lastError { throw lastError }
+        return nil
+    }
+
     /// Reset all balancer state (cursor + in-flight counts).
     func reset() {
         inFlight.removeAll()

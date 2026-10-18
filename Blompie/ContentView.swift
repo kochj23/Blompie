@@ -757,7 +757,7 @@ struct SettingsView: View {
                             }
                         }
                         .pickerStyle(.menu)
-                        .onChange(of: gameEngine.selectedModel) { _ in
+                        .onChange(of: gameEngine.selectedModel) { _, _ in
                             gameEngine.saveSettings()
                         }
 
@@ -781,7 +781,7 @@ struct SettingsView: View {
                             Spacer()
                         }
                         Slider(value: $gameEngine.fontSize, in: 8...36, step: 2)
-                            .onChange(of: gameEngine.fontSize) { _ in
+                            .onChange(of: gameEngine.fontSize) { _, _ in
                                 gameEngine.saveSettings()
                             }
                     }
@@ -792,7 +792,7 @@ struct SettingsView: View {
                     Toggle("Enable streaming responses", isOn: $gameEngine.streamingEnabled)
                         .font(.system(.body, design: .monospaced))
                         .foregroundColor(ModernColors.textPrimary)
-                        .onChange(of: gameEngine.streamingEnabled) { _ in
+                        .onChange(of: gameEngine.streamingEnabled) { _, _ in
                             gameEngine.saveSettings()
                         }
                 }
@@ -803,14 +803,14 @@ struct SettingsView: View {
                         Toggle("Balance across all local models (Ollama + MLX)", isOn: $aiBackend.useAllLocalModels)
                             .font(.system(.body, design: .monospaced))
                             .foregroundColor(ModernColors.textPrimary)
-                            .onChange(of: aiBackend.useAllLocalModels) { _ in
+                            .onChange(of: aiBackend.useAllLocalModels) { _, _ in
                                 aiBackend.saveConfiguration()
                             }
 
                         Toggle("Enable all frontier models (OpenRouter)", isOn: $aiBackend.enableAllFrontierModels)
                             .font(.system(.body, design: .monospaced))
                             .foregroundColor(ModernColors.textPrimary)
-                            .onChange(of: aiBackend.enableAllFrontierModels) { newValue in
+                            .onChange(of: aiBackend.enableAllFrontierModels) { _, newValue in
                                 aiBackend.saveConfiguration()
                                 if newValue { Task { await aiBackend.fetchOpenRouterModels() } }
                             }
@@ -818,7 +818,7 @@ struct SettingsView: View {
                         Toggle("Use Nova Gateway (optional)", isOn: $aiBackend.useNovaGateway)
                             .font(.system(.body, design: .monospaced))
                             .foregroundColor(ModernColors.textPrimary)
-                            .onChange(of: aiBackend.useNovaGateway) { _ in
+                            .onChange(of: aiBackend.useNovaGateway) { _, _ in
                                 aiBackend.saveConfiguration()
                             }
 
@@ -863,7 +863,7 @@ struct SettingsView: View {
                             }
                             .foregroundColor(ModernColors.textPrimary)
                             Slider(value: $gameEngine.temperature, in: 0.0...1.0, step: 0.1)
-                                .onChange(of: gameEngine.temperature) { _ in
+                                .onChange(of: gameEngine.temperature) { _, _ in
                                     gameEngine.saveSettings()
                                 }
                         }
@@ -875,7 +875,7 @@ struct SettingsView: View {
                             }
                         }
                         .pickerStyle(.segmented)
-                        .onChange(of: gameEngine.detailLevel) { _ in
+                        .onChange(of: gameEngine.detailLevel) { _, _ in
                             gameEngine.saveSettings()
                         }
 
@@ -886,7 +886,7 @@ struct SettingsView: View {
                             }
                         }
                         .pickerStyle(.segmented)
-                        .onChange(of: gameEngine.toneStyle) { _ in
+                        .onChange(of: gameEngine.toneStyle) { _, _ in
                             gameEngine.saveSettings()
                         }
                     }
@@ -897,7 +897,7 @@ struct SettingsView: View {
                     Toggle("Enable auto-save", isOn: $gameEngine.autoSaveEnabled)
                         .font(.system(.body, design: .monospaced))
                         .foregroundColor(ModernColors.textPrimary)
-                        .onChange(of: gameEngine.autoSaveEnabled) { _ in
+                        .onChange(of: gameEngine.autoSaveEnabled) { _, _ in
                             gameEngine.saveSettings()
                         }
                 }
@@ -908,7 +908,7 @@ struct SettingsView: View {
                         Toggle("Enable random model switching", isOn: $gameEngine.randomModelMode)
                             .font(.system(.body, design: .monospaced))
                             .foregroundColor(ModernColors.textPrimary)
-                            .onChange(of: gameEngine.randomModelMode) { _ in
+                            .onChange(of: gameEngine.randomModelMode) { _, _ in
                                 gameEngine.saveSettings()
                             }
 
@@ -927,7 +927,7 @@ struct SettingsView: View {
                                 Text("15").tag(15)
                             }
                             .pickerStyle(.menu)
-                            .onChange(of: gameEngine.actionsUntilModelSwitch) { _ in
+                            .onChange(of: gameEngine.actionsUntilModelSwitch) { _, _ in
                                 gameEngine.saveSettings()
                             }
                             Text("actions")

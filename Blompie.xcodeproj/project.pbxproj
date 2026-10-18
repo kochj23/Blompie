@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		058151D82945EB786C6178B1 /* AnalysisUnified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D8135C11113918F2EB3541E /* AnalysisUnified.swift */; };
+		08AF4F6764314948B810049E /* RetryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54803B74D99E780DFD581E50 /* RetryTests.swift */; };
 		0C581607005215B608FE28BC /* ImageGenerationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C32C458DA22F0B354DF014A /* ImageGenerationService.swift */; };
 		3E40571C44F883735E21FBCD /* ImageGenerationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4D49A69F145E20405EA273E /* ImageGenerationView.swift */; };
 		66DBE56D640F07F3EE004CE5 /* UnifiedAICapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 260DCF64E2FBD979C749AEF7 /* UnifiedAICapabilities.swift */; };
@@ -21,21 +22,20 @@
 		A1000027000000000000001 /* ColorTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000028000000000000001 /* ColorTheme.swift */; };
 		A1000029000000000000001 /* TokenMeterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000030000000000000001 /* TokenMeterView.swift */; };
 		A5DF490A8E2797529D368BA9 /* ModernDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = 835FF56C3D5E4159328CA7DC /* ModernDesign.swift */; };
+		A7A88C44545B975802515417 /* PerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34162FD9CA20E47649040C87 /* PerformanceTests.swift */; };
 		AB36BC0F2CC4B7E282453FD8 /* SecurityUnified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 723D8AD6E6806DECCA2E2CF5 /* SecurityUnified.swift */; };
 		B5890F36441D8B47BF6B1F02 /* AIBackendManager+Generation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF58222E6296081CAAF7DD7F /* AIBackendManager+Generation.swift */; };
-		E1000001000000000000001 /* EthicalAIGuardian.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000002000000000000001 /* EthicalAIGuardian.swift */; };
-		E1000003000000000000001 /* AIBackendManager+Enhanced.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000004000000000000001 /* AIBackendManager+Enhanced.swift */; };
-		E1000005000000000000001 /* AIBackendManager+EthicalGuardian.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000006000000000000001 /* AIBackendManager+EthicalGuardian.swift */; };
-		E1000007000000000000001 /* AIBackendStatusMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000008000000000000001 /* AIBackendStatusMenu.swift */; };
 		B7F0A099C0D7ADC08D758492 /* VoiceUnified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97F04847A118BF7671E15896 /* VoiceUnified.swift */; };
 		B8BF6C5ABC4DFF0CAD855E02 /* ImageGenerationUnified.swift in Sources */ = {isa = PBXBuildFile; fileRef = 632842B5EA413E1013690662 /* ImageGenerationUnified.swift */; };
+		BA57FB0148324E15756DB078 /* BlompieComprehensiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36891EDA19342319CDC60762 /* BlompieComprehensiveTests.swift */; };
 		C1000031000000000000001 /* SharedDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000032000000000000001 /* SharedDataManager.swift */; };
-		W1000001000000000000001 /* BlompieWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1000002000000000000001 /* BlompieWidget.swift */; };
-		W1000003000000000000001 /* WidgetData.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1000004000000000000001 /* WidgetData.swift */; };
-		W1000005000000000000001 /* SharedDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1000006000000000000001 /* SharedDataManager.swift */; };
-		W1000009000000000000001 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = W1000010000000000000001 /* WidgetKit.framework */; };
-		W1000011000000000000001 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = W1000012000000000000001 /* SwiftUI.framework */; };
-		W1000015000000000000001 /* Blompie Widget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = W1000007000000000000001 /* Blompie Widget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F1000001000000000000001 /* ModelRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000011000000000000001 /* ModelRegistry.swift */; };
+		F1000002000000000000001 /* OpenRouterProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000012000000000000001 /* OpenRouterProvider.swift */; };
+		F1000003000000000000001 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000013000000000000001 /* KeychainStore.swift */; };
+		F1000004000000000000001 /* LLMBackendType.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000014000000000000001 /* LLMBackendType.swift */; };
+		F1000005000000000000001 /* LLMLoadBalancerSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000015000000000000001 /* LLMLoadBalancerSupport.swift */; };
+		F1000006000000000000001 /* AIBackendManager+Balancer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000016000000000000001 /* AIBackendManager+Balancer.swift */; };
+		F1000007000000000000001 /* LoadBalancerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000017000000000000001 /* LoadBalancerTests.swift */; };
 		T1000001000000000000001 /* GameEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1000011000000000000001 /* GameEngineTests.swift */; };
 		T1000002000000000000001 /* OllamaServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1000012000000000000001 /* OllamaServiceTests.swift */; };
 		T1000003000000000000001 /* ColorThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1000013000000000000001 /* ColorThemeTests.swift */; };
@@ -44,29 +44,28 @@
 		T1000006000000000000001 /* AIBackendManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1000016000000000000001 /* AIBackendManagerTests.swift */; };
 		T1000007000000000000001 /* ResponseParsingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1000017000000000000001 /* ResponseParsingTests.swift */; };
 		T1000008000000000000001 /* NovaAPIServerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1000018000000000000001 /* NovaAPIServerTests.swift */; };
-		F1000001000000000000001 /* ModelRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000011000000000000001 /* ModelRegistry.swift */; };
-		F1000002000000000000001 /* OpenRouterProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000012000000000000001 /* OpenRouterProvider.swift */; };
-		F1000003000000000000001 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000013000000000000001 /* KeychainStore.swift */; };
-		F1000004000000000000001 /* LLMBackendType.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000014000000000000001 /* LLMBackendType.swift */; };
-		F1000005000000000000001 /* LLMLoadBalancerSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000015000000000000001 /* LLMLoadBalancerSupport.swift */; };
-		F1000006000000000000001 /* AIBackendManager+Balancer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000016000000000000001 /* AIBackendManager+Balancer.swift */; };
-		F1000007000000000000001 /* LoadBalancerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000017000000000000001 /* LoadBalancerTests.swift */; };
+		W1000001000000000000001 /* BlompieWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1000002000000000000001 /* BlompieWidget.swift */; };
+		W1000003000000000000001 /* WidgetData.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1000004000000000000001 /* WidgetData.swift */; };
+		W1000005000000000000001 /* SharedDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1000006000000000000001 /* SharedDataManager.swift */; };
+		W1000009000000000000001 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = W1000010000000000000001 /* WidgetKit.framework */; };
+		W1000011000000000000001 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = W1000012000000000000001 /* SwiftUI.framework */; };
+		W1000015000000000000001 /* Blompie Widget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = W1000007000000000000001 /* Blompie Widget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		W1000013000000000000001 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = A1000021000000000000001 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = W1000008000000000000001;
-			remoteInfo = "Blompie Widget";
-		};
 		T1000009000000000000001 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = A1000021000000000000001 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = A1000017000000000000001;
 			remoteInfo = Blompie;
+		};
+		W1000013000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A1000021000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = W1000008000000000000001;
+			remoteInfo = "Blompie Widget";
 		};
 /* End PBXContainerItemProxy section */
 
@@ -86,7 +85,10 @@
 
 /* Begin PBXFileReference section */
 		260DCF64E2FBD979C749AEF7 /* UnifiedAICapabilities.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UnifiedAICapabilities.swift; path = AICapabilities/UnifiedAICapabilities.swift; sourceTree = "<group>"; };
+		34162FD9CA20E47649040C87 /* PerformanceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PerformanceTests.swift; sourceTree = "<group>"; };
+		36891EDA19342319CDC60762 /* BlompieComprehensiveTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BlompieComprehensiveTests.swift; sourceTree = "<group>"; };
 		38A2E66196452BF3AA3F0F84 /* AIBackendManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIBackendManager.swift; sourceTree = "<group>"; };
+		54803B74D99E780DFD581E50 /* RetryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RetryTests.swift; sourceTree = "<group>"; };
 		632842B5EA413E1013690662 /* ImageGenerationUnified.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImageGenerationUnified.swift; path = AICapabilities/ImageGenerationUnified.swift; sourceTree = "<group>"; };
 		6C32C458DA22F0B354DF014A /* ImageGenerationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImageGenerationService.swift; path = Blompie/ImageGenerationService.swift; sourceTree = "<group>"; };
 		723D8AD6E6806DECCA2E2CF5 /* SecurityUnified.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SecurityUnified.swift; path = AICapabilities/SecurityUnified.swift; sourceTree = "<group>"; };
@@ -105,19 +107,18 @@
 		A917E485EDFBB2D619D42A9B /* NovaAPIServer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NovaAPIServer.swift; sourceTree = "<group>"; };
 		C1000032000000000000001 /* SharedDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedDataManager.swift; sourceTree = "<group>"; };
 		C4D49A69F145E20405EA273E /* ImageGenerationView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImageGenerationView.swift; path = Blompie/ImageGenerationView.swift; sourceTree = "<group>"; };
-		EF58222E6296081CAAF7DD7F /* AIBackendManager+Generation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "AIBackendManager+Generation.swift"; sourceTree = "<group>"; };
 		E1000002000000000000001 /* EthicalAIGuardian.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EthicalAIGuardian.swift; sourceTree = "<group>"; };
 		E1000004000000000000001 /* AIBackendManager+Enhanced.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AIBackendManager+Enhanced.swift"; sourceTree = "<group>"; };
 		E1000006000000000000001 /* AIBackendManager+EthicalGuardian.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AIBackendManager+EthicalGuardian.swift"; sourceTree = "<group>"; };
 		E1000008000000000000001 /* AIBackendStatusMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIBackendStatusMenu.swift; sourceTree = "<group>"; };
-		W1000002000000000000001 /* BlompieWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlompieWidget.swift; sourceTree = "<group>"; };
-		W1000004000000000000001 /* WidgetData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetData.swift; sourceTree = "<group>"; };
-		W1000006000000000000001 /* SharedDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedDataManager.swift; sourceTree = "<group>"; };
-		W1000007000000000000001 /* Blompie Widget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Blompie Widget.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
-		W1000010000000000000001 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
-		W1000012000000000000001 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
-		W1000016000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		W1000017000000000000001 /* Blompie_Widget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Blompie_Widget.entitlements; sourceTree = "<group>"; };
+		EF58222E6296081CAAF7DD7F /* AIBackendManager+Generation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "AIBackendManager+Generation.swift"; sourceTree = "<group>"; };
+		F1000011000000000000001 /* ModelRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelRegistry.swift; sourceTree = "<group>"; };
+		F1000012000000000000001 /* OpenRouterProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterProvider.swift; sourceTree = "<group>"; };
+		F1000013000000000000001 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
+		F1000014000000000000001 /* LLMBackendType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMBackendType.swift; sourceTree = "<group>"; };
+		F1000015000000000000001 /* LLMLoadBalancerSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMLoadBalancerSupport.swift; sourceTree = "<group>"; };
+		F1000016000000000000001 /* AIBackendManager+Balancer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AIBackendManager+Balancer.swift"; sourceTree = "<group>"; };
+		F1000017000000000000001 /* LoadBalancerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadBalancerTests.swift; sourceTree = "<group>"; };
 		T1000010000000000000001 /* BlompieTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BlompieTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		T1000011000000000000001 /* GameEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngineTests.swift; sourceTree = "<group>"; };
 		T1000012000000000000001 /* OllamaServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaServiceTests.swift; sourceTree = "<group>"; };
@@ -127,17 +128,25 @@
 		T1000016000000000000001 /* AIBackendManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIBackendManagerTests.swift; sourceTree = "<group>"; };
 		T1000017000000000000001 /* ResponseParsingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponseParsingTests.swift; sourceTree = "<group>"; };
 		T1000018000000000000001 /* NovaAPIServerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NovaAPIServerTests.swift; sourceTree = "<group>"; };
-		F1000011000000000000001 /* ModelRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelRegistry.swift; sourceTree = "<group>"; };
-		F1000012000000000000001 /* OpenRouterProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterProvider.swift; sourceTree = "<group>"; };
-		F1000013000000000000001 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
-		F1000014000000000000001 /* LLMBackendType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMBackendType.swift; sourceTree = "<group>"; };
-		F1000015000000000000001 /* LLMLoadBalancerSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMLoadBalancerSupport.swift; sourceTree = "<group>"; };
-		F1000016000000000000001 /* AIBackendManager+Balancer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AIBackendManager+Balancer.swift"; sourceTree = "<group>"; };
-		F1000017000000000000001 /* LoadBalancerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadBalancerTests.swift; sourceTree = "<group>"; };
+		W1000002000000000000001 /* BlompieWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlompieWidget.swift; sourceTree = "<group>"; };
+		W1000004000000000000001 /* WidgetData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetData.swift; sourceTree = "<group>"; };
+		W1000006000000000000001 /* SharedDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedDataManager.swift; sourceTree = "<group>"; };
+		W1000007000000000000001 /* Blompie Widget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Blompie Widget.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		W1000010000000000000001 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		W1000012000000000000001 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		W1000016000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		W1000017000000000000001 /* Blompie_Widget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Blompie_Widget.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A1000013000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		T1000019000000000000001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -150,13 +159,6 @@
 			files = (
 				W1000011000000000000001 /* SwiftUI.framework in Frameworks */,
 				W1000009000000000000001 /* WidgetKit.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		T1000019000000000000001 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -245,18 +247,6 @@
 			path = Services;
 			sourceTree = "<group>";
 		};
-		W1000019000000000000001 /* Blompie Widget */ = {
-			isa = PBXGroup;
-			children = (
-				W1000002000000000000001 /* BlompieWidget.swift */,
-				W1000004000000000000001 /* WidgetData.swift */,
-				W1000006000000000000001 /* SharedDataManager.swift */,
-				W1000016000000000000001 /* Info.plist */,
-				W1000017000000000000001 /* Blompie_Widget.entitlements */,
-			);
-			path = "Blompie Widget";
-			sourceTree = "<group>";
-		};
 		T1000020000000000000001 /* BlompieTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -269,8 +259,23 @@
 				T1000017000000000000001 /* ResponseParsingTests.swift */,
 				T1000018000000000000001 /* NovaAPIServerTests.swift */,
 				F1000017000000000000001 /* LoadBalancerTests.swift */,
+				36891EDA19342319CDC60762 /* BlompieComprehensiveTests.swift */,
+				54803B74D99E780DFD581E50 /* RetryTests.swift */,
+				34162FD9CA20E47649040C87 /* PerformanceTests.swift */,
 			);
 			path = BlompieTests;
+			sourceTree = "<group>";
+		};
+		W1000019000000000000001 /* Blompie Widget */ = {
+			isa = PBXGroup;
+			children = (
+				W1000002000000000000001 /* BlompieWidget.swift */,
+				W1000004000000000000001 /* WidgetData.swift */,
+				W1000006000000000000001 /* SharedDataManager.swift */,
+				W1000016000000000000001 /* Info.plist */,
+				W1000017000000000000001 /* Blompie_Widget.entitlements */,
+			);
+			path = "Blompie Widget";
 			sourceTree = "<group>";
 		};
 		W1000020000000000000001 /* Frameworks */ = {
@@ -310,23 +315,6 @@
 			productReference = A1000011000000000000001 /* Blompie.app */;
 			productType = "com.apple.product-type.application";
 		};
-		W1000008000000000000001 /* Blompie Widget */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = W1000022000000000000001 /* Build configuration list for PBXNativeTarget "Blompie Widget" */;
-			buildPhases = (
-				W1000023000000000000001 /* Sources */,
-				W1000018000000000000001 /* Frameworks */,
-				W1000024000000000000001 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = "Blompie Widget";
-			productName = "Blompie Widget";
-			productReference = W1000007000000000000001 /* Blompie Widget.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 		T1000021000000000000001 /* BlompieTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = T1000022000000000000001 /* Build configuration list for PBXNativeTarget "BlompieTests" */;
@@ -345,6 +333,23 @@
 			productReference = T1000010000000000000001 /* BlompieTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		W1000008000000000000001 /* Blompie Widget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = W1000022000000000000001 /* Build configuration list for PBXNativeTarget "Blompie Widget" */;
+			buildPhases = (
+				W1000023000000000000001 /* Sources */,
+				W1000018000000000000001 /* Frameworks */,
+				W1000024000000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Blompie Widget";
+			productName = "Blompie Widget";
+			productReference = W1000007000000000000001 /* Blompie Widget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -358,12 +363,12 @@
 					A1000017000000000000001 = {
 						CreatedOnToolsVersion = 15.0;
 					};
-					W1000008000000000000001 = {
-						CreatedOnToolsVersion = 15.0;
-					};
 					T1000021000000000000001 = {
 						CreatedOnToolsVersion = 15.0;
 						TestTargetID = A1000017000000000000001;
+					};
+					W1000008000000000000001 = {
+						CreatedOnToolsVersion = 15.0;
 					};
 				};
 			};
@@ -400,14 +405,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		W1000024000000000000001 /* Resources */ = {
+		T1000024000000000000001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		T1000024000000000000001 /* Resources */ = {
+		W1000024000000000000001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -448,16 +453,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		W1000023000000000000001 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				W1000001000000000000001 /* BlompieWidget.swift in Sources */,
-				W1000003000000000000001 /* WidgetData.swift in Sources */,
-				W1000005000000000000001 /* SharedDataManager.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		T1000023000000000000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -471,21 +466,34 @@
 				T1000007000000000000001 /* ResponseParsingTests.swift in Sources */,
 				T1000008000000000000001 /* NovaAPIServerTests.swift in Sources */,
 				F1000007000000000000001 /* LoadBalancerTests.swift in Sources */,
+				BA57FB0148324E15756DB078 /* BlompieComprehensiveTests.swift in Sources */,
+				08AF4F6764314948B810049E /* RetryTests.swift in Sources */,
+				A7A88C44545B975802515417 /* PerformanceTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		W1000023000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				W1000001000000000000001 /* BlompieWidget.swift in Sources */,
+				W1000003000000000000001 /* WidgetData.swift in Sources */,
+				W1000005000000000000001 /* SharedDataManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		W1000021000000000000001 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = W1000008000000000000001 /* Blompie Widget */;
-			targetProxy = W1000013000000000000001 /* PBXContainerItemProxy */;
-		};
 		T1000025000000000000001 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = A1000017000000000000001 /* Blompie */;
 			targetProxy = T1000009000000000000001 /* PBXContainerItemProxy */;
+		};
+		W1000021000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = W1000008000000000000001 /* Blompie Widget */;
+			targetProxy = W1000013000000000000001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -617,7 +625,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = QRRCB8HB3W;
 				ENABLE_PREVIEWS = YES;
@@ -630,7 +638,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = net.digitalnoise.Blompie;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -647,7 +655,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = QRRCB8HB3W;
 				ENABLE_PREVIEWS = YES;
@@ -660,67 +668,9 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = net.digitalnoise.Blompie;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
-		W1000025000000000000001 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_ENTITLEMENTS = "Blompie Widget/Blompie_Widget.entitlements";
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
-				DEVELOPMENT_TEAM = QRRCB8HB3W;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Blompie Widget/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Blompie Widget";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Jordan Koch. All rights reserved.";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@executable_path/../../../../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.1;
-				PRODUCT_BUNDLE_IDENTIFIER = net.digitalnoise.Blompie.widget;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Debug;
-		};
-		W1000026000000000000001 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_ENTITLEMENTS = "Blompie Widget/Blompie_Widget.entitlements";
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
-				DEVELOPMENT_TEAM = QRRCB8HB3W;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Blompie Widget/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Blompie Widget";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Jordan Koch. All rights reserved.";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@executable_path/../../../../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.1;
-				PRODUCT_BUNDLE_IDENTIFIER = net.digitalnoise.Blompie.widget;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -762,6 +712,64 @@
 			};
 			name = Release;
 		};
+		W1000025000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = "Blompie Widget/Blompie_Widget.entitlements";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 4;
+				DEVELOPMENT_TEAM = QRRCB8HB3W;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Blompie Widget/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Blompie Widget";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Jordan Koch. All rights reserved.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = net.digitalnoise.Blompie.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		W1000026000000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = "Blompie Widget/Blompie_Widget.entitlements";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 4;
+				DEVELOPMENT_TEAM = QRRCB8HB3W;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Blompie Widget/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Blompie Widget";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Jordan Koch. All rights reserved.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = net.digitalnoise.Blompie.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -783,20 +791,20 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		W1000022000000000000001 /* Build configuration list for PBXNativeTarget "Blompie Widget" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				W1000025000000000000001 /* Debug */,
-				W1000026000000000000001 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		T1000022000000000000001 /* Build configuration list for PBXNativeTarget "BlompieTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				T1000026000000000000001 /* Debug */,
 				T1000027000000000000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		W1000022000000000000001 /* Build configuration list for PBXNativeTarget "Blompie Widget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				W1000025000000000000001 /* Debug */,
+				W1000026000000000000001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

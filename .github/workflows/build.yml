@@ -17,7 +17,11 @@ jobs:
       # Xcode 16 no longer bundles the Metal Toolchain by default. Blompie links
       # the compiled mlx-swift / mlx-swift-lm packages, so install the component
       # (non-fatal) to keep the build green if a Metal shader gets compiled.
-      run: xcodebuild -downloadComponent MetalToolchain || true
+      # The flag only exists from Xcode 26; older runner images bundle the toolchain.
+      run: |
+        if xcodebuild -help 2>&1 | grep -q -- -downloadComponent; then
+          xcodebuild -downloadComponent MetalToolchain || true
+        fi
 
     - name: Build & Test
       run: |
@@ -33,4 +37,8 @@ jobs:
           CODE_SIGNING_ALLOWED=NO \
           CODE_SIGNING_REQUIRED=NO \
           SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-          | tail -80
+          > build.log 2>&1 || STATUS=$?
+        tail -80 build.log
+        # tail alone hides which tests failed; list them explicitly
+        grep -E "error: -\[|\] failed \(" build.log || true
+        exit ${STATUS:-0}

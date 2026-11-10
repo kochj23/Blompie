@@ -317,7 +317,7 @@ final class NovaAPIGateTests: XCTestCase {
         XCTAssertEqual(NovaAPIGate.check(method: "GET", headers: hdrs(), token: nil, port: 37426)?.0, 503)
     }
     func testSourceHasNoWildcardCORSAndBindsLoopback() throws {
-        let src = try String(contentsOfFile: "/Volumes/Data/xcode/Blompie/Blompie/NovaAPIServer.swift", encoding: .utf8)
+        let src = try String(contentsOfFile: "\(blompieProjectRoot)/Blompie/NovaAPIServer.swift", encoding: .utf8)
         XCTAssertFalse(src.contains("Access-Control-Allow-Origin"))
         XCTAssertTrue(src.contains("host: \"127.0.0.1\""))
         XCTAssertTrue(src.contains("NovaAPIGate.check("))

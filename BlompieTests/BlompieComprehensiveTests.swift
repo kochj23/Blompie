@@ -115,54 +115,38 @@ final class ComprehensiveUnitTests: XCTestCase {
             "Landscape width should exceed height")
     }
 
-    // MARK: AICapability Models
+    // MARK: Narration source (replaces the deleted, never-used AICapabilities models)
 
-    func testAICapabilityCategoryCaseCount() {
-        XCTAssertEqual(AICapabilityCategory.allCases.count, 9)
+    func testNarrationSourcePlayValues() {
+        XCTAssertEqual(NarrationSource.ai(.ollama).playValue, "llm")
+        XCTAssertEqual(NarrationSource.fallback.playValue, "fallback")
+        XCTAssertEqual(NarrationSource.scripted.playValue, "scripted")
     }
 
-    func testAICapabilityCategoryRawValues() {
-        XCTAssertEqual(AICapabilityCategory.llm.rawValue, "LLM (Language Models)")
-        XCTAssertEqual(AICapabilityCategory.imageGeneration.rawValue, "Image Generation")
-        XCTAssertEqual(AICapabilityCategory.voice.rawValue, "Voice & Audio")
-        XCTAssertEqual(AICapabilityCategory.video.rawValue, "Video Generation")
-        XCTAssertEqual(AICapabilityCategory.analysis.rawValue, "Analysis & Insights")
-        XCTAssertEqual(AICapabilityCategory.automation.rawValue, "Automation")
-        XCTAssertEqual(AICapabilityCategory.security.rawValue, "Security & Pentesting")
-        XCTAssertEqual(AICapabilityCategory.search.rawValue, "Search & Vector DB")
-        XCTAssertEqual(AICapabilityCategory.specialized.rawValue, "Specialized Tools")
+    func testNarrationSourceLabels() {
+        XCTAssertEqual(NarrationSource.ai(.openRouter).label, "AI via OpenRouter")
+        XCTAssertTrue(NarrationSource.fallback.label.contains("Scripted"))
+        XCTAssertTrue(NarrationSource.scripted.label.contains("AI off"))
     }
 
-    func testAICapabilityStatusCodable() throws {
-        for status in [AICapabilityStatus.available, .unavailable, .error] {
-            let data = try JSONEncoder().encode(status)
-            let decoded = try JSONDecoder().decode(AICapabilityStatus.self, from: data)
-            XCTAssertEqual(decoded, status)
+    func testNarrationSourceIsAI() {
+        XCTAssertTrue(NarrationSource.ai(.mlx).isAI)
+        XCTAssertFalse(NarrationSource.fallback.isAI)
+        XCTAssertFalse(NarrationSource.scripted.isAI)
+    }
+
+    func testLLMBackendTypeCodableRoundTrip() throws {
+        for backend in LLMBackendType.allCases {
+            let data = try JSONEncoder().encode(backend)
+            XCTAssertEqual(try JSONDecoder().decode(LLMBackendType.self, from: data), backend)
         }
     }
 
-    func testAICapabilityCodable() throws {
-        let cap = AICapability(
-            id: "test-cap",
-            name: "Test Capability",
-            category: .llm,
-            status: .available,
-            description: "A test capability"
-        )
-        let data = try JSONEncoder().encode(cap)
-        let decoded = try JSONDecoder().decode(AICapability.self, from: data)
-        XCTAssertEqual(decoded.id, "test-cap")
-        XCTAssertEqual(decoded.name, "Test Capability")
-        XCTAssertEqual(decoded.category, .llm)
-        XCTAssertEqual(decoded.status, .available)
-        XCTAssertEqual(decoded.description, "A test capability")
-    }
-
-    // MARK: AIBackendManager.AIBackend Equatable
+    // MARK: LLMBackendType Equatable
 
     func testAIBackendEquality() {
-        XCTAssertEqual(AIBackendManager.AIBackend.ollama, AIBackendManager.AIBackend.ollama)
-        XCTAssertNotEqual(AIBackendManager.AIBackend.ollama, AIBackendManager.AIBackend.openAI)
+        XCTAssertEqual(LLMBackendType.ollama, LLMBackendType.ollama)
+        XCTAssertNotEqual(LLMBackendType.ollama, LLMBackendType.openAI)
     }
 
     // MARK: OllamaChatResponse tokensPerSecond Edge Cases
@@ -195,32 +179,32 @@ final class ComprehensiveUnitTests: XCTestCase {
         XCTAssertEqual(response.tokensPerSecond!, 0.1, accuracy: 0.01)
     }
 
-    // MARK: AttackType Enum
+    // MARK: Scripted narrator (replaces tests of the deleted, unused AICapabilities AttackType)
 
-    func testAttackTypeCaseCount() {
-        XCTAssertEqual(AttackType.allCases.count, 7)
+    func testScriptedNarratorHasSevenPlaces() {
+        XCTAssertEqual(ScriptedNarrator.places.count, 7)
+        XCTAssertEqual(Set(ScriptedNarrator.places.map(\.id)).count, 7, "place ids are unique")
     }
 
-    func testAttackTypeRawValues() {
-        XCTAssertEqual(AttackType.portScan.rawValue, "Port Scan")
-        XCTAssertEqual(AttackType.sqlInjection.rawValue, "SQL Injection")
-        XCTAssertEqual(AttackType.xss.rawValue, "Cross-Site Scripting")
-        XCTAssertEqual(AttackType.bruteForce.rawValue, "Brute Force")
-        XCTAssertEqual(AttackType.dosAttack.rawValue, "Denial of Service")
-        XCTAssertEqual(AttackType.manInTheMiddle.rawValue, "Man in the Middle")
-        XCTAssertEqual(AttackType.phishing.rawValue, "Phishing")
+    func testScriptedNarratorStartsInMeadow() {
+        let n = ScriptedNarrator()
+        XCTAssertTrue(n.opening().contains("This is Blompie"))
+        XCTAssertEqual(n.location, "meadow")
+        XCTAssertEqual(n.actions(for: n.currentPlace).first, "Take the brass compass")
+        XCTAssertEqual(ScriptedNarrator.awayLines.count, 5)
     }
 
     // MARK: AIError Localized Descriptions
 
     func testAllAIErrorsHaveDescriptions() {
-        let errors: [AIError] = [
+        let errors: [LLMError] = [
             .noBackendAvailable, .invalidURL, .invalidResponse,
-            .httpError(400), .noResponse, .mlxNotImplemented
+            .httpError(400), .noResponse, .mlxNotAvailable,
+            .insecureEndpoint, .missingAPIKey, .invalidOutput
         ]
         for error in errors {
             XCTAssertNotNil(error.errorDescription,
-                "AIError case should have errorDescription")
+                "LLMError case should have errorDescription")
             XCTAssertFalse(error.errorDescription!.isEmpty)
         }
     }
@@ -282,10 +266,10 @@ final class ComprehensiveSecurityTests: XCTestCase {
     }
 
     func testOllamaServiceUsesLocalhost() throws {
-        let path = "\(blompieProjectRoot)/Blompie/OllamaService.swift"
-        let content = try String(contentsOfFile: path, encoding: .utf8)
-        XCTAssertTrue(content.contains("localhost:11434") || content.contains("127.0.0.1:11434"),
-            "OllamaService must use localhost or loopback address")
+        // Default stays local; the URL is configurable in Settings > AI Narrator.
+        XCTAssertEqual(OllamaService().baseURL, "http://localhost:11434")
+        XCTAssertEqual(LLMBackendType.ollama.defaultURL, "http://localhost:11434")
+        XCTAssertEqual(OllamaService(baseURL: "http://studio.local:11434/").baseURL, "http://studio.local:11434")
     }
 
     func testNoSensitiveFileTypesCommitted() throws {
@@ -326,11 +310,15 @@ final class ComprehensiveSecurityTests: XCTestCase {
         }
     }
 
-    func testEthicalGuardianPermanentBlockKeyExists() throws {
-        let path = "\(blompieProjectRoot)/EthicalAIGuardian.swift"
-        let content = try String(contentsOfFile: path, encoding: .utf8)
-        XCTAssertTrue(content.contains("AIGuardian_PermanentBlock"),
-            "EthicalAIGuardian must use AIGuardian_PermanentBlock key for persistent blocking")
+    func testNoPermanentAIBlockFlagOrPromptLogInSource() throws {
+        // The uncompiled EthicalAIGuardian (permanent UserDefaults block, 10k-entry
+        // prompt log) was deleted in 1.2.0; nothing may reintroduce either.
+        for path in try allSwiftSourcePaths() {
+            let content = try String(contentsOfFile: path, encoding: .utf8)
+            XCTAssertFalse(content.contains("AIGuardian_PermanentBlock"), "permanent AI block flag in \(path)")
+            XCTAssertFalse(content.contains("permanentlyDisableAI"), "permanent AI disable in \(path)")
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: "\(blompieProjectRoot)/EthicalAIGuardian.swift"))
     }
 
     func testNoDirectBearerTokensInSource() throws {
@@ -755,7 +743,9 @@ final class ComprehensiveFrameTests: XCTestCase {
         XCTAssertEqual(manager.tinyLLMServerURL, "http://localhost:8000")
         XCTAssertEqual(manager.tinyChatServerURL, "http://localhost:8000")
         XCTAssertEqual(manager.openWebUIServerURL, "http://localhost:8080")
-        XCTAssertEqual(manager.comfyUIServerURL, "http://localhost:8188")
+        XCTAssertEqual(manager.novaGatewayServerURL, "http://127.0.0.1:18792")
+        XCTAssertEqual(manager.openRouterServerURL, "https://openrouter.ai/api/v1")
+        XCTAssertEqual(manager.openAIServerURL, "https://api.openai.com/v1")
         XCTAssertEqual(manager.automatic1111ServerURL, "http://localhost:7860")
         XCTAssertEqual(manager.swarmUIServerURL, "http://localhost:7801")
     }

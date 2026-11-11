@@ -48,6 +48,9 @@ enum LLMError: LocalizedError, Sendable {
     case httpError(Int)
     case noResponse
     case mlxNotAvailable
+    case insecureEndpoint
+    case missingAPIKey
+    case invalidOutput
 
     var errorDescription: String? {
         switch self {
@@ -63,6 +66,12 @@ enum LLMError: LocalizedError, Sendable {
             return "No response received from LLM backend."
         case .mlxNotAvailable:
             return "MLX not available. Install: pip install mlx-lm"
+        case .insecureEndpoint:
+            return "Refusing to send an API key over plain http. Cloud endpoints must use https."
+        case .missingAPIKey:
+            return "No API key stored in the Keychain for this backend."
+        case .invalidOutput:
+            return "The model's reply failed validation and was discarded."
         }
     }
 }

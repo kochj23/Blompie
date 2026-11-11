@@ -57,8 +57,17 @@ class SharedDataManager {
     func updateFromGameEngine(_ gameEngine: GameEngine) {
         // Determine AI backend info
         let aiBackend = AIBackendManager.shared
-        let backendName = aiBackend.isOllamaAvailable ? "Ollama" : (aiBackend.isMLXAvailable ? "MLX" : "Unknown")
-        let backendAvailable = aiBackend.isOllamaAvailable || aiBackend.isMLXAvailable
+        let backendName: String
+        if !aiBackend.aiEnabled {
+            backendName = "Scripted (AI off)"
+        } else if let backend = gameEngine.lastNarrationSource.flatMap({ src -> LLMBackendType? in
+            if case .ai(let b) = src { return b } else { return nil }
+        }) ?? aiBackend.statusBackend {
+            backendName = backend.shortName
+        } else {
+            backendName = "Scripted (AI away)"
+        }
+        let backendAvailable = aiBackend.aiEnabled && aiBackend.statusOnline
 
         let gameData = WidgetGameData(
             adventureName: getAdventureName(from: gameEngine),

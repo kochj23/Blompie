@@ -183,12 +183,11 @@ struct ImageGenerationView: View {
 
                         HStack(spacing: 12) {
                             BackendStatusBadge(name: "SwarmUI", isAvailable: AIBackendManager.shared.isSwarmUIAvailable)
-                            BackendStatusBadge(name: "ComfyUI", isAvailable: AIBackendManager.shared.isComfyUIAvailable)
                             BackendStatusBadge(name: "Automatic1111", isAvailable: AIBackendManager.shared.isAutomatic1111Available)
                         }
 
                         if !hasAvailableBackend {
-                            Text("⚠️ No image generation backend available. Please start SwarmUI, ComfyUI, or Automatic1111.")
+                            Text("⚠️ No image generation backend available. Please start SwarmUI or Automatic1111.")
                                 .font(.caption)
                                 .foregroundColor(.orange)
                                 .padding(8)
@@ -297,7 +296,7 @@ struct ImageGenerationView: View {
     }
 
     private var hasAvailableBackend: Bool {
-        AIBackendManager.shared.isSwarmUIAvailable || AIBackendManager.shared.isComfyUIAvailable || AIBackendManager.shared.isAutomatic1111Available
+        AIBackendManager.shared.isSwarmUIAvailable || AIBackendManager.shared.isAutomatic1111Available
     }
 }
 

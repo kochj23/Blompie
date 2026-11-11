@@ -3,7 +3,7 @@
 //  BlompieTests
 //
 //  Security tests: no hardcoded keys, Keychain usage verification,
-//  input sanitization, EthicalAIGuardian policy enforcement, content filtering.
+//  input sanitization, AI output validation (replaced EthicalAIGuardian), content filtering.
 //
 //  Created by Jordan Koch on 2026-05-01.
 //  Copyright 2026 Jordan Koch. All rights reserved.
@@ -126,32 +126,51 @@ final class SourceCodeSecurityTests: XCTestCase {
     }
 
     func testKeychainUsedForSecrets() throws {
-        // Verify AIBackendManager uses Keychain for API keys
-        let backendPath = "\(blompieProjectRoot)/AIBackendManager.swift"
-        let content = try String(contentsOfFile: backendPath, encoding: .utf8)
-        XCTAssertTrue(content.contains("kSecClass"), "AIBackendManager must use Security framework Keychain")
+        // Every AI secret goes through KeychainStore (generic-password items).
+        let storePath = "\(blompieProjectRoot)/Blompie/Services/KeychainStore.swift"
+        let content = try String(contentsOfFile: storePath, encoding: .utf8)
+        XCTAssertTrue(content.contains("kSecClassGenericPassword"), "Must store as generic passwords")
         XCTAssertTrue(content.contains("SecItemAdd"), "Must use SecItemAdd for Keychain writes")
         XCTAssertTrue(content.contains("SecItemCopyMatching"), "Must use SecItemCopyMatching for Keychain reads")
         XCTAssertTrue(content.contains("SecItemDelete"), "Must use SecItemDelete for Keychain deletion")
-        XCTAssertTrue(content.contains("kSecClassGenericPassword"), "Must store as generic passwords")
+        let manager = AIBackendManager.shared
+        XCTAssertEqual(manager.openAIKeychain.account, AIBackendManager.openAIKeyAccount)
+        XCTAssertTrue(manager.openRouterKeychain.service.hasPrefix("com.jordankoch.Blompie"))
     }
 
     func testAPIKeysMigratedFromUserDefaults() throws {
-        // Verify migration path exists
-        let backendPath = "\(blompieProjectRoot)/AIBackendManager.swift"
-        let content = try String(contentsOfFile: backendPath, encoding: .utf8)
-        XCTAssertTrue(content.contains("migrateAPIKeysFromUserDefaults"),
-            "Must have migration path from UserDefaults to Keychain")
+        // Behavioural: legacy plaintext keys move to the Keychain and leave UserDefaults.
+        let suite = "com.jordankoch.Blompie.tests.migration.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = KeychainStore(service: "com.jordankoch.Blompie.tests.\(UUID().uuidString)", account: AIBackendManager.openAIKeyAccount)
+        defer { store.delete() }
+        defaults.set("legacy-openai-value", forKey: "AIBackend_OpenAI_Key")
+        defaults.set("legacy-aws-secret", forKey: "AIBackend_AWS_SecretKey")
+        AIBackendManager.migrateAPIKeysFromUserDefaults(defaults: defaults, openAI: store)
+        XCTAssertEqual(store.get(), "legacy-openai-value")
+        XCTAssertNil(defaults.string(forKey: "AIBackend_OpenAI_Key"))
+        XCTAssertNil(defaults.string(forKey: "AIBackend_AWS_SecretKey"), "removed cloud stubs' secrets are deleted, not kept")
     }
 
     func testNoAPIKeysInUserDefaults() throws {
-        // After migration, API keys should NOT be in UserDefaults
-        let backendPath = "\(blompieProjectRoot)/AIBackendManager.swift"
-        let content = try String(contentsOfFile: backendPath, encoding: .utf8)
-        // Check that loadConfiguration uses Keychain, not UserDefaults, for API keys
-        XCTAssertTrue(content.contains("loadFromKeychain(key: \"AIBackend_OpenAI_Key\""))
-        XCTAssertTrue(content.contains("loadFromKeychain(key: \"AIBackend_AWS_AccessKey\""))
-        XCTAssertTrue(content.contains("loadFromKeychain(key: \"AIBackend_Azure_Key\""))
+        // saveConfiguration persists settings only; a stored key never reaches UserDefaults.
+        let suite = "com.jordankoch.Blompie.tests.nokeys.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let service = "com.jordankoch.Blompie.tests.\(UUID().uuidString)"
+        let manager = AIBackendManager(defaults: defaults, keychainService: service,
+                                       openRouterKeychain: KeychainStore(service: service + ".openrouter"),
+                                       migrateLegacySecrets: false, probeOnLaunch: false)
+        defer { manager.setOpenAIAPIKey(""); manager.setOpenRouterAPIKey("") }
+        manager.setOpenAIAPIKey("sk-test-not-a-real-key-000")
+        manager.setOpenRouterAPIKey("sk-or-test-not-a-real-key-000")
+        manager.saveConfiguration()
+        let dump = defaults.persistentDomain(forName: suite) ?? [:]
+        for (_, value) in dump {
+            let text = "\(value)"
+            XCTAssertFalse(text.contains("not-a-real-key"), "API key leaked into UserDefaults")
+        }
     }
 
     func testNovaAPIServerBindsToLoopback() throws {
@@ -188,61 +207,51 @@ final class SourceCodeSecurityTests: XCTestCase {
     }
 }
 
-// MARK: - EthicalAIGuardian Source Code Verification
+// MARK: - AI Output Validation (replaces the uncompiled EthicalAIGuardian)
 
-final class EthicalAIGuardianSourceTests: XCTestCase {
+/// The EthicalAIGuardian file was never compiled into the app and was deleted in
+/// 1.2.0. These tests cover what actually guards game state now: every model
+/// reply passes `NarrationValidator` before it is shown or parsed.
+final class AIOutputValidationSecurityTests: XCTestCase {
 
-    func testEthicalGuardianFileExists() {
-        let path = "\(blompieProjectRoot)/EthicalAIGuardian.swift"
-        XCTAssertTrue(FileManager.default.fileExists(atPath: path),
-            "EthicalAIGuardian.swift must exist in project")
+    func testDeadGuardianRemovedAndValidatorShips() {
+        // Dead code is gone; the validator that replaced it ships in the app target.
+        XCTAssertFalse(FileManager.default.fileExists(atPath: "\(blompieProjectRoot)/EthicalAIGuardian.swift"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: "\(blompieProjectRoot)/Blompie/Narration.swift"))
     }
 
-    func testEthicalGuardianHasContentModeration() throws {
-        let path = "\(blompieProjectRoot)/EthicalAIGuardian.swift"
-        let content = try String(contentsOfFile: path, encoding: .utf8)
-        XCTAssertTrue(content.contains("detectProhibitedContent"),
-            "Must have prohibited content detection")
-        XCTAssertTrue(content.contains("illegalActivity"),
-            "Must detect illegal activities")
-        XCTAssertTrue(content.contains("harmfulContent"),
-            "Must detect harmful content")
-        XCTAssertTrue(content.contains("hateSpeech"),
-            "Must detect hate speech")
+    func testChatTemplateTokensStripped() {
+        // Prompt-injection residue: chat-template tokens are stripped.
+        XCTAssertEqual(NarrationValidator.clean("<|im_start|>You enter a quiet library full of books.<|im_end|>"),
+                       "You enter a quiet library full of books.")
     }
 
-    func testEthicalGuardianCannotBeDisabled() throws {
-        let path = "\(blompieProjectRoot)/EthicalAIGuardian.swift"
-        let content = try String(contentsOfFile: path, encoding: .utf8)
-        XCTAssertTrue(content.contains("isEnabled = true"),
-            "Guardian must default to enabled and cannot be disabled")
+    func testEmptyOrLetterlessRepliesRejected() {
+        // Validation runs on every path, including the balancer and scripted text.
+        XCTAssertNil(NarrationValidator.clean(""))
+        XCTAssertNil(NarrationValidator.clean("   \n\t  "))
+        XCTAssertNil(NarrationValidator.clean("!!! ??? ..."))
     }
 
-    func testEthicalGuardianUsesContentHashing() throws {
-        let path = "\(blompieProjectRoot)/EthicalAIGuardian.swift"
-        let content = try String(contentsOfFile: path, encoding: .utf8)
-        XCTAssertTrue(content.contains("SHA256"),
-            "Must hash content for privacy (not store plaintext)")
-        XCTAssertTrue(content.contains("hashContent"),
-            "Must have content hashing function")
+    func testHiddenReasoningStripped() {
+        // Hidden reasoning never reaches the player or the play-history DB.
+        let raw = "<think>the player wants secrets</think>You climb the stairs to a dusty attic."
+        XCTAssertEqual(NarrationValidator.clean(raw), "You climb the stairs to a dusty attic.")
+        XCTAssertNil(NarrationValidator.clean("<think>never closed reasoning that goes on and on"))
     }
 
-    func testEthicalGuardianHasCrisisResources() throws {
-        let path = "\(blompieProjectRoot)/EthicalAIGuardian.swift"
-        let content = try String(contentsOfFile: path, encoding: .utf8)
-        XCTAssertTrue(content.contains("988"),
-            "Must include Suicide Prevention Lifeline number (988)")
-        XCTAssertTrue(content.contains("741741"),
-            "Must include Crisis Text Line (741741)")
+    func testSystemPromptEchoRejected() {
+        // A reply that echoes the system prompt is rejected (prompt leak).
+        let echo = "You are the game master for a text adventure. Your role is to: CRITICAL FORMAT REQUIREMENT"
+        XCTAssertNil(NarrationValidator.clean(echo))
     }
 
-    func testEthicalGuardianBlocksAfterRepeatedViolations() throws {
-        let path = "\(blompieProjectRoot)/EthicalAIGuardian.swift"
-        let content = try String(contentsOfFile: path, encoding: .utf8)
-        XCTAssertTrue(content.contains("criticalCount >= 3"),
-            "Must permanently block after 3 critical violations")
-        XCTAssertTrue(content.contains("permanentlyDisableAI"),
-            "Must have permanent disable capability")
+    func testControlCharsRemovedAndLengthClamped() {
+        // Control and bidi-override characters are removed; length is clamped.
+        let cleaned = NarrationValidator.clean("You see a \u{202E}door\u{0007} to the north.")
+        XCTAssertEqual(cleaned, "You see a door to the north.")
+        let long = String(repeating: "word ", count: 5_000)
+        XCTAssertLessThanOrEqual(NarrationValidator.clean(long)?.count ?? 0, NarrationValidator.maxNarrationChars)
     }
 }
 

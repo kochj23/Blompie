@@ -4,6 +4,8 @@
 **Version:** 1.0
 **Applies to:** All Jordan Koch AI-Enabled Applications
 
+> **Blompie note (1.2.0):** these are shared usage terms. Blompie itself does not run the automated monitoring, logging or enforcement described under "Monitoring & Enforcement": the `EthicalAIGuardian` that would have done so was never compiled into the app and was removed in 1.2.0. Blompie validates model output before showing it (see README, "AI Options") and keeps no log of prompts.
+
 ---
 
 ## BINDING AGREEMENT

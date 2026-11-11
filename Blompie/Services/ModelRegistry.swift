@@ -1,6 +1,6 @@
 //
 //  ModelRegistry.swift
-//  AIStudio
+//  Blompie (ported from AIStudio)
 //
 //  Created by Jordan Koch on 2026-02-19.
 //  Copyright © 2026 Jordan Koch. All rights reserved.
@@ -89,10 +89,12 @@ enum ModelRegistry {
 
     /// Map OpenRouter model ids (from `OpenRouterProvider.parseModels`) into the
     /// registry as frontier models. Pure and network-free.
-    static func frontierModels(from openRouterModelIds: [String]) -> [DiscoveredModel] {
-        openRouterModelIds.compactMap { id -> DiscoveredModel? in
+    static func frontierModels(from openRouterModelIds: [String],
+                               baseURL: String = OpenRouterProvider.baseURL) -> [DiscoveredModel] {
+        let endpoint = "\(EndpointPolicy.normalizedBaseURL(baseURL))/chat/completions"
+        return openRouterModelIds.compactMap { id -> DiscoveredModel? in
             guard !id.isEmpty else { return nil }
-            return DiscoveredModel(modelName: id, backend: .openRouter, endpoint: OpenRouterProvider.chatCompletionsURL)
+            return DiscoveredModel(modelName: id, backend: .openRouter, endpoint: endpoint)
         }
     }
 

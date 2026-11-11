@@ -75,7 +75,8 @@ enum OllamaError: Error, LocalizedError {
 }
 
 class OllamaService {
-    private let baseURL = "http://localhost:11434"
+    /// Ollama base URL (Settings > AI Narrator > Ollama URL). Defaults to local.
+    let baseURL: String
     var model: String = "mistral"
     var temperature: Double = 0.7
     var maxTokens: Int? = nil
@@ -87,6 +88,10 @@ class OllamaService {
         config.timeoutIntervalForResource = 600 // 10 minutes for resource
         return URLSession(configuration: config)
     }()
+
+    init(baseURL: String = LLMBackendType.ollama.defaultURL) {
+        self.baseURL = EndpointPolicy.normalizedBaseURL(baseURL)
+    }
 
     func fetchInstalledModels() async throws -> [String] {
         guard let url = URL(string: "\(baseURL)/api/tags") else {

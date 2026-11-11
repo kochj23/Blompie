@@ -1,77 +1,121 @@
 import Foundation
-import Security
 import SwiftUI
 
 //
 //  AIBackendManager.swift
-//  Shared AI Backend Manager
+//  Blompie
 //
-//  Standardized AI backend detection and management for all Jordan Koch projects
-//  Checks for: Ollama, TinyLLM, TinyChat, OpenWebUI, MLX, ComfyUI, Automatic1111, SwarmUI
+//  Owns every AI setting and the live status of each backend:
+//    - global "AI on/off" toggle (off => the scripted narrator runs the game)
+//    - backend picker over the canonical `LLMBackendType` (with Auto)
+//    - per-backend endpoint URLs and model names (editable, persisted)
+//    - API keys, only in the Keychain under Blompie's own services
+//    - availability probes and the narrator status badge
+//  Generation lives in `AIBackendManager+Generation.swift`; the multi-model
+//  balancer in `AIBackendManager+Balancer.swift`.
 //
 //  Author: Jordan Koch
-//  Date: 2026-01-21
-//  Version: 1.0.0
-//
-//  Usage: Copy this file to any AI-enabled project for consistent backend management
 //
 
-/// Centralized AI backend manager for detecting and managing local LLM services
-/// Supports: Ollama, TinyLLM, TinyChat, OpenWebUI, MLX, and image generation backends
-class AIBackendManager: ObservableObject {
+/// What `GameEngine` needs from the AI layer (a protocol so tests can inject one).
+protocol StoryNarrating: AnyObject {
+    /// Global AI switch. Off => no network at all; the scripted narrator answers.
+    var aiEnabled: Bool { get }
+    /// Narrate one turn. Throws when no backend produced a valid reply.
+    func narrate(
+        messages: [OllamaMessage],
+        model: String,
+        temperature: Double,
+        onChunk: ((String) -> Void)?
+    ) async throws -> NarrationReply
+}
+
+/// A validated model reply plus where it came from.
+struct NarrationReply: Equatable, Sendable {
+    let text: String
+    let backend: LLMBackendType
+    let model: String
+    var tokensPerSecond: Double? = nil
+}
+
+final class AIBackendManager: ObservableObject {
 
     // MARK: - Singleton
 
-    static let shared = AIBackendManager()
+    /// Under XCTest the shared manager uses a separate defaults suite and Keychain
+    /// service, never migrates the legacy key and never probes at launch, so test
+    /// runs cannot touch the player's real settings or secrets.
+    static let shared: AIBackendManager = {
+        if isRunningTests {
+            return AIBackendManager(
+                defaults: UserDefaults(suiteName: "com.jordankoch.Blompie.tests") ?? .standard,
+                keychainService: "com.jordankoch.Blompie.tests",
+                openRouterKeychain: KeychainStore(service: "com.jordankoch.Blompie.tests.openrouter"),
+                migrateLegacySecrets: false,
+                probeOnLaunch: false
+            )
+        }
+        return AIBackendManager()
+    }()
 
-    // MARK: - Published Properties
+    static var isRunningTests: Bool {
+        NSClassFromString("XCTestCase") != nil
+            || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
 
-    // AI Text Backends
+    // MARK: - Game-level switches
+
+    /// Global AI toggle. Off => the scripted narrator runs the game with no network.
+    @Published var aiEnabled = true
+    /// Backend picked in Settings. `.auto` fails over in `LLMBackendType.autoOrder`.
+    @Published var activeBackend: LLMBackendType = .auto
+
+    // MARK: - Availability (refreshed by `refreshAllBackends`)
+
     @Published var isOllamaAvailable = false
     @Published var isMLXAvailable = false
     @Published var isTinyLLMAvailable = false
     @Published var isTinyChatAvailable = false
     @Published var isOpenWebUIAvailable = false
+    @Published var isNovaGatewayAvailable = false
+    @Published var isOpenRouterAvailable = false
+    @Published var isOpenAIAvailable = false
 
-    // Image Generation Backends
-    @Published var isComfyUIAvailable = false
+    // Image generation backends
     @Published var isAutomatic1111Available = false
     @Published var isSwarmUIAvailable = false
 
-    // Ollama-specific
-    @Published var ollamaModels: [String] = []
-    @Published var selectedOllamaModel: String = "mistral:latest"
-
-    // Server URLs (customizable)
-    @Published var ollamaServerURL: String = "http://localhost:11434"
-    @Published var tinyLLMServerURL: String = "http://localhost:8000"
-    @Published var tinyChatServerURL: String = "http://localhost:8000"
-    @Published var openWebUIServerURL: String = "http://localhost:8080"
-    @Published var comfyUIServerURL: String = "http://localhost:8188"
-    @Published var automatic1111ServerURL: String = "http://localhost:7860"
-    @Published var swarmUIServerURL: String = "http://localhost:7801"
-
-    // Active backend
-    @Published var activeBackend: AIBackend = .ollama
     @Published var lastRefreshDate: Date?
 
-    // Cloud AI Services - API Keys (stored in Keychain)
-    @Published var openAIAPIKey: String = ""
-    @Published var googleCloudAPIKey: String = ""
-    @Published var azureAPIKey: String = ""
-    @Published var azureEndpoint: String = ""
-    @Published var awsAccessKey: String = ""
-    @Published var awsSecretKey: String = ""
-    @Published var awsRegion: String = "us-east-1"
-    @Published var ibmWatsonAPIKey: String = ""
-    @Published var ibmWatsonURL: String = ""
+    /// Narrator status badge: the backend a turn would use now, and whether it is reachable.
+    @Published var statusBackend: LLMBackendType?
+    @Published var statusOnline = false
+    /// Backend that answered the last turn (nil if the last turn was scripted).
+    @Published var lastNarrationBackend: LLMBackendType?
 
-    // Cloud availability
-    @Published var isOpenAIAvailable = false
-    @Published var isGoogleCloudAvailable = false
-    @Published var isAzureAvailable = false
-    @Published var isAWSAvailable = false
-    @Published var isIBMWatsonAvailable = false
+    // MARK: - Endpoints (editable; defaults are local)
+
+    @Published var ollamaServerURL = LLMBackendType.ollama.defaultURL
+    @Published var tinyLLMServerURL = LLMBackendType.tinyLLM.defaultURL
+    @Published var tinyChatServerURL = LLMBackendType.tinyChat.defaultURL
+    @Published var openWebUIServerURL = LLMBackendType.openWebUI.defaultURL
+    @Published var novaGatewayServerURL = LLMBackendType.novaGateway.defaultURL
+    @Published var openRouterServerURL = LLMBackendType.openRouter.defaultURL
+    @Published var openAIServerURL = LLMBackendType.openAI.defaultURL
+    @Published var automatic1111ServerURL = "http://localhost:7860"
+    @Published var swarmUIServerURL = "http://localhost:7801"
+
+    // MARK: - Models (Ollama/TinyChat/OpenWebUI use the game's model picker)
+
+    @Published var openRouterModels: [String] = OpenRouterProvider.fallbackModels
+    @Published var selectedOpenRouterModel: String = OpenRouterProvider.defaultModel
+    @Published var selectedOpenAIModel = AIBackendManager.defaultOpenAIModel
+    @Published var selectedMLXModel = AIBackendManager.defaultMLXModel
+    @Published var tinyLLMModel = "default"
+
+    static let defaultOpenAIModel = "gpt-4o-mini"
+    static let defaultMLXModel = "mlx-community/Llama-3.2-3B-Instruct-4bit"
+    static let mlxExecutable = "/opt/homebrew/bin/mlx_lm.generate"
 
     // MARK: - Multi-model load balancer (shared cross-app design)
 
@@ -81,17 +125,6 @@ class AIBackendManager: ObservableObject {
     @Published var enableAllFrontierModels = false
     /// Toggle: include the Nova Gateway (optional; never required).
     @Published var useNovaGateway = false
-
-    /// Nova Gateway base URL (OpenAI-compatible, inherits Nova's own routing).
-    @Published var novaGatewayServerURL = ModelRegistry.novaGatewayDefaultURL
-    /// OpenRouter base URL (already includes `/v1`).
-    @Published var openRouterServerURL = OpenRouterProvider.baseURL
-
-    /// OpenRouter model ids for the picker (falls back to the popular set).
-    @Published var openRouterModels: [String] = OpenRouterProvider.fallbackModels
-    /// Currently selected OpenRouter frontier model.
-    @Published var selectedOpenRouterModel: String = OpenRouterProvider.defaultModel
-
     /// The models currently discovered for the balanced pool (all enabled sources).
     @Published var discoveredModels: [DiscoveredModel] = []
 
@@ -99,636 +132,390 @@ class AIBackendManager: ObservableObject {
     let balancer = LoadBalancer()
     /// Balancer policy (least-busy mirrors how Nova's gateway spreads load).
     var balancerPolicy: BalancerPolicy = .leastBusy
-    /// Keychain-backed store for the single OpenRouter API key.
-    let openRouterKeychain = KeychainStore()
 
-    /// True when any load-balancing toggle is on, so generation should be
-    /// dispatched through the balanced path rather than the single-backend path.
+    /// True when any load-balancing toggle is on.
     var isBalancingEnabled: Bool {
         useAllLocalModels || enableAllFrontierModels || useNovaGateway
     }
 
-    // MARK: - Backend Enum
+    // MARK: - Secrets (Keychain only)
 
-    enum AIBackend: String, CaseIterable {
-        case ollama = "Ollama"
-        case mlx = "MLX Toolkit"
-        case tinyLLM = "TinyLLM"
-        case tinyChat = "TinyChat"
-        case openWebUI = "OpenWebUI"
-        case openAI = "OpenAI"
-        case googleCloud = "Google Cloud AI"
-        case azureCognitive = "Microsoft Azure"
-        case awsAI = "AWS AI Services"
-        case ibmWatson = "IBM Watson"
+    /// Keychain service for Blompie's non-OpenRouter secrets.
+    static let keychainServiceName = "com.jordankoch.Blompie"
+    static let openAIKeyAccount = "AIBackend_OpenAI_Key"
 
-        var description: String {
-            switch self {
-            case .ollama:
-                return "HTTP-based API (Ollama running on localhost:11434)"
-            case .mlx:
-                return "Apple Silicon optimized (MLX framework)"
-            case .tinyLLM:
-                return "TinyLLM lightweight server (localhost:8000)"
-            case .tinyChat:
-                return "TinyChat by Jason Cox - Fast chatbot interface (localhost:8000)"
-            case .openWebUI:
-                return "OpenWebUI - Self-hosted AI platform (localhost:8080)"
-            case .openAI:
-                return "OpenAI API - GPT-4o, DALL-E 3 (api.openai.com)"
-            case .googleCloud:
-                return "Google Cloud AI - Vision, Speech, Translation (cloud.google.com)"
-            case .azureCognitive:
-                return "Microsoft Azure Cognitive Services - Speech, Vision, Language"
-            case .awsAI:
-                return "AWS AI Services - Rekognition, Polly, Comprehend"
-            case .ibmWatson:
-                return "IBM Watson API - NLU, Speech, Discovery"
-            }
-        }
+    let keychainService: String
+    /// Keychain-backed store for the single OpenRouter API key.
+    let openRouterKeychain: KeychainStore
+    /// Keychain-backed store for the OpenAI API key.
+    let openAIKeychain: KeychainStore
 
-        var setupInstructions: String {
-            switch self {
-            case .ollama:
-                return """
-                1. Install: brew install ollama
-                2. Start: ollama serve
-                3. Pull model: ollama pull mistral:latest
-                """
-            case .mlx:
-                return """
-                1. Install Python: brew install python
-                2. Install MLX: pip install mlx-lm
-                3. Path: /opt/homebrew/bin/python3
-                """
-            case .tinyLLM:
-                return """
-                1. Clone: git clone https://github.com/jasonacox/TinyLLM
-                2. Run: docker-compose up -d
-                3. Access: http://localhost:8000
-                """
-            case .tinyChat:
-                return """
-                1. Docker: docker run -p 8000:8000 jasonacox/tinychat:latest
-                2. Configure backend LLM (Ollama, OpenAI, etc.)
-                3. Access: http://localhost:8000
-                """
-            case .openWebUI:
-                return """
-                1. Docker: docker run -p 3000:8080 ghcr.io/open-webui/open-webui:main
-                2. Or pip: pip install open-webui && open-webui serve
-                3. Access: http://localhost:8080 or http://localhost:3000
-                """
-            case .openAI:
-                return """
-                1. Sign up: https://platform.openai.com
-                2. Create API Key
-                3. Enter key in settings
-                """
-            case .googleCloud:
-                return """
-                1. Enable Vertex AI: https://cloud.google.com/vertex-ai
-                2. Create service account and download JSON key
-                3. Enter API key in settings
-                """
-            case .azureCognitive:
-                return """
-                1. Create Azure account: https://azure.microsoft.com
-                2. Create Cognitive Services resource
-                3. Copy endpoint URL and API key
-                """
-            case .awsAI:
-                return """
-                1. Sign up: https://aws.amazon.com
-                2. Create IAM user with Bedrock access
-                3. Generate access key and secret key
-                """
-            case .ibmWatson:
-                return """
-                1. Sign up: https://www.ibm.com/watson
-                2. Create Watson Assistant service
-                3. Copy API key and service URL
-                """
-            }
-        }
-    }
+    // MARK: - Transport, timeouts, retries
 
-    // MARK: - Keychain Storage
+    /// HTTP seam (tests inject a stub; no network in unit tests).
+    var transport: HTTPTransport = HTTP.live
+    /// Bounded retries per backend before failing over (408/429/5xx and transport errors only).
+    var retryPolicy = RetryPolicy(maxAttempts: 2, baseDelay: 0.5, multiplier: 2, maxDelay: 2)
+    var retrySleep: RetrySleeper = Retry.realSleep
+    /// Per-request timeout for local/LAN models (first load of a large model is slow).
+    var localRequestTimeout: TimeInterval = 180
+    /// Per-request timeout for cloud models.
+    var cloudRequestTimeout: TimeInterval = 60
+    /// Availability probe timeout.
+    var probeTimeout: TimeInterval = 3
+    /// Auto mode re-probes when the last refresh is older than this.
+    var availabilityMaxAge: TimeInterval = 30
 
-    private static let keychainServiceName = "com.jordankoch.Blompie"
-
-    private static func saveToKeychain(key: String, value: String, service: String) {
-        guard let data = value.data(using: .utf8) else { return }
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: key,
-            kSecAttrService as String: service,
-            kSecValueData as String: data
-        ]
-        SecItemDelete(query as CFDictionary)
-        SecItemAdd(query as CFDictionary, nil)
-    }
-
-    private static func loadFromKeychain(key: String, service: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: key,
-            kSecAttrService as String: service,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
-    }
-
-    private static func deleteFromKeychain(key: String, service: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: key,
-            kSecAttrService as String: service
-        ]
-        SecItemDelete(query as CFDictionary)
-    }
-
-    private static func migrateAPIKeysFromUserDefaults(service: String) {
-        let defaults = UserDefaults.standard
-        let keysToMigrate = [
-            "AIBackend_OpenAI_Key",
-            "AIBackend_GoogleCloud_Key",
-            "AIBackend_Azure_Key",
-            "AIBackend_Azure_Endpoint",
-            "AIBackend_AWS_AccessKey",
-            "AIBackend_AWS_SecretKey",
-            "AIBackend_IBM_Key",
-            "AIBackend_IBM_URL"
-        ]
-        for key in keysToMigrate {
-            if let value = defaults.string(forKey: key), !value.isEmpty {
-                saveToKeychain(key: key, value: value, service: service)
-                defaults.removeObject(forKey: key)
-            }
-        }
-    }
+    let defaults: UserDefaults
 
     // MARK: - Initialization
 
-    private init() {
-        Self.migrateAPIKeysFromUserDefaults(service: Self.keychainServiceName)
+    init(
+        defaults: UserDefaults = .standard,
+        keychainService: String = AIBackendManager.keychainServiceName,
+        openRouterKeychain: KeychainStore = KeychainStore(),
+        migrateLegacySecrets: Bool = true,
+        probeOnLaunch: Bool = true
+    ) {
+        self.defaults = defaults
+        self.keychainService = keychainService
+        self.openRouterKeychain = openRouterKeychain
+        self.openAIKeychain = KeychainStore(service: keychainService, account: Self.openAIKeyAccount)
+
+        if migrateLegacySecrets {
+            Self.migrateAPIKeysFromUserDefaults(defaults: defaults, openAI: openAIKeychain)
+            Self.migrateLegacyOpenRouterKey(defaults: defaults, to: openRouterKeychain)
+        }
         loadConfiguration()
-        Task {
-            await refreshAllBackends()
+        if probeOnLaunch {
+            Task { await refreshAllBackends() }
         }
     }
 
-    // MARK: - Refresh All Backends
+    // MARK: - Legacy migration
 
-    /// Check availability of all AI backends
+    /// UserDefaults keys used by Blompie <= 1.0 for API keys. OpenAI's moves to the
+    /// Keychain; the removed cloud stubs' values are deleted (never kept in plaintext).
+    static let legacyDefaultsKeys = [
+        "AIBackend_OpenAI_Key",
+        "AIBackend_GoogleCloud_Key",
+        "AIBackend_Azure_Key",
+        "AIBackend_Azure_Endpoint",
+        "AIBackend_AWS_AccessKey",
+        "AIBackend_AWS_SecretKey",
+        "AIBackend_IBM_Key",
+        "AIBackend_IBM_URL"
+    ]
+
+    static func migrateAPIKeysFromUserDefaults(defaults: UserDefaults, openAI: KeychainStore) {
+        for key in legacyDefaultsKeys {
+            guard let value = defaults.string(forKey: key) else { continue }
+            if key == openAIKeyAccount, !value.isEmpty, !openAI.hasValue {
+                openAI.set(value)
+            }
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    static let openRouterMigratedFlag = "AIBackend_OpenRouterKeyMigrated"
+
+    /// Read the AIStudio-shared OpenRouter item once and copy it to Blompie's own
+    /// service. The old item is never written or deleted (AIStudio still owns it).
+    static func migrateLegacyOpenRouterKey(
+        defaults: UserDefaults,
+        to target: KeychainStore,
+        legacy: KeychainStore = KeychainStore(service: OpenRouterProvider.legacyKeychainService)
+    ) {
+        guard !defaults.bool(forKey: openRouterMigratedFlag) else { return }
+        KeychainStore.migrate(from: legacy, to: target)
+        defaults.set(true, forKey: openRouterMigratedFlag)
+    }
+
+    // MARK: - Keys
+
+    func setOpenAIAPIKey(_ key: String) {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { openAIKeychain.delete() } else { openAIKeychain.set(trimmed) }
+    }
+
+    func openAIAPIKey() -> String? { openAIKeychain.get() }
+    var hasOpenAIKey: Bool { openAIKeychain.hasValue }
+
+    /// The Keychain key a cloud backend sends, or nil (local backends never send one).
+    func apiKey(for backend: LLMBackendType) -> String? {
+        switch backend {
+        case .openRouter: return openRouterKeychain.get().flatMap { $0.isEmpty ? nil : $0 }
+        case .openAI: return openAIKeychain.get().flatMap { $0.isEmpty ? nil : $0 }
+        default: return nil
+        }
+    }
+
+    // MARK: - Endpoints
+
+    /// Base URL configured for a backend ("" for MLX/Auto).
+    func baseURL(for backend: LLMBackendType) -> String {
+        let raw: String
+        switch backend {
+        case .auto, .mlx: return ""
+        case .ollama: raw = ollamaServerURL
+        case .tinyLLM: raw = tinyLLMServerURL
+        case .tinyChat: raw = tinyChatServerURL
+        case .openWebUI: raw = openWebUIServerURL
+        case .novaGateway: raw = novaGatewayServerURL
+        case .openRouter: raw = openRouterServerURL
+        case .openAI: raw = openAIServerURL
+        }
+        return EndpointPolicy.normalizedBaseURL(raw)
+    }
+
+    /// Full chat endpoint for a backend.
+    func chatEndpoint(for backend: LLMBackendType) -> String {
+        let base = baseURL(for: backend)
+        switch backend {
+        case .auto, .mlx: return ""
+        case .ollama: return "\(base)/api/chat"
+        case .tinyLLM: return "\(base)/v1/chat/completions"
+        case .tinyChat: return "\(base)/api/chat/stream"
+        case .openWebUI: return "\(base)/api/chat/completions"
+        case .novaGateway: return "\(base)/v1/chat/completions"
+        case .openRouter, .openAI: return "\(base)/chat/completions"
+        }
+    }
+
+    /// Endpoint probed for reachability (nil = no network probe).
+    func probeURL(for backend: LLMBackendType) -> URL? {
+        let base = baseURL(for: backend)
+        switch backend {
+        case .auto, .mlx: return nil
+        case .ollama: return URL(string: "\(base)/api/tags")
+        case .tinyLLM: return URL(string: "\(base)/v1/models")
+        case .tinyChat, .openWebUI: return URL(string: "\(base)/")
+        case .novaGateway: return URL(string: "\(base)/v1/models")
+        case .openRouter, .openAI: return URL(string: "\(base)/models")
+        }
+    }
+
+    /// Model name sent to a backend. Ollama, TinyChat and OpenWebUI use the
+    /// game's model picker (Ollama tags); the others have their own setting.
+    func modelName(for backend: LLMBackendType, gameModel: String) -> String {
+        switch backend {
+        case .ollama, .tinyChat, .openWebUI, .auto: return gameModel
+        case .tinyLLM: return tinyLLMModel
+        case .mlx: return selectedMLXModel
+        case .novaGateway: return "nova"
+        case .openRouter: return selectedOpenRouterModel
+        case .openAI: return selectedOpenAIModel
+        }
+    }
+
+    // MARK: - Availability
+
+    /// Cached availability from the last refresh.
+    func isAvailable(_ backend: LLMBackendType) -> Bool {
+        switch backend {
+        case .auto: return autoChain().first != nil
+        case .ollama: return isOllamaAvailable
+        case .mlx: return isMLXAvailable
+        case .tinyLLM: return isTinyLLMAvailable
+        case .tinyChat: return isTinyChatAvailable
+        case .openWebUI: return isOpenWebUIAvailable
+        case .novaGateway: return isNovaGatewayAvailable
+        case .openRouter: return isOpenRouterAvailable
+        case .openAI: return isOpenAIAvailable
+        }
+    }
+
+    var availabilityMap: [LLMBackendType: Bool] {
+        Dictionary(uniqueKeysWithValues: LLMBackendType.concrete.map { ($0, isAvailable($0)) })
+    }
+
+    /// Reachable backends in the fixed Auto order.
+    func autoChain() -> [LLMBackendType] {
+        FailoverPlanner.orderedHealthy(chain: LLMBackendType.autoOrder, availability: availabilityMap)
+    }
+
+    /// Cloud backends count as available when a key is stored and the URL is https;
+    /// no network call is made for them during a refresh.
+    func cloudConfigured(_ backend: LLMBackendType) -> Bool {
+        guard backend.isCloud, apiKey(for: backend) != nil,
+              let url = URL(string: baseURL(for: backend)) else { return false }
+        return EndpointPolicy.isSecure(url)
+    }
+
+    /// Live reachability probe for one backend (short timeout, no retries).
+    func probe(_ backend: LLMBackendType) async -> Bool {
+        switch backend {
+        case .auto:
+            return false
+        case .mlx:
+            return FileManager.default.isExecutableFile(atPath: Self.mlxExecutable)
+        case .openRouter, .openAI:
+            guard cloudConfigured(backend), let url = probeURL(for: backend), let key = apiKey(for: backend) else { return false }
+            var request = URLRequest(url: url, timeoutInterval: probeTimeout)
+            let headers = backend == .openRouter
+                ? OpenRouterProvider.authHeaders(apiKey: key)
+                : ["Authorization": "Bearer \(key)"]
+            headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
+            return await reachable(request)
+        default:
+            guard let url = probeURL(for: backend) else { return false }
+            return await reachable(URLRequest(url: url, timeoutInterval: probeTimeout))
+        }
+    }
+
+    private func reachable(_ request: URLRequest) async -> Bool {
+        do {
+            let (_, response) = try await transport(request)
+            guard let status = (response as? HTTPURLResponse)?.statusCode else { return false }
+            return status < 500
+        } catch {
+            return false
+        }
+    }
+
+    /// Probe every backend (text and image) concurrently and update the status badge.
     func refreshAllBackends() async {
-        async let ollamaCheck = checkOllamaAvailability()
-        async let mlxCheck = checkMLXAvailability()
-        async let tinyLLMCheck = checkTinyLLMAvailability()
-        async let tinyChatCheck = checkTinyChatAvailability()
-        async let openWebUICheck = checkOpenWebUIAvailability()
-        async let comfyUICheck = checkComfyUIAvailability()
-        async let automatic1111Check = checkAutomatic1111Availability()
-        async let swarmUICheck = checkSwarmUIAvailability()
-
-        let (ollama, mlx, tinyLLM, tinyChat, openWebUI, comfyUI, automatic1111, swarmUI) = await (
-            ollamaCheck, mlxCheck, tinyLLMCheck, tinyChatCheck, openWebUICheck,
-            comfyUICheck, automatic1111Check, swarmUICheck
-        )
+        guard aiEnabled else {
+            await MainActor.run { self.updateStatus(); self.lastRefreshDate = Date() }
+            return
+        }
+        async let ollama = probe(.ollama)
+        async let mlx = probe(.mlx)
+        async let tinyLLM = probe(.tinyLLM)
+        async let tinyChat = probe(.tinyChat)
+        async let openWebUI = probe(.openWebUI)
+        async let nova = probe(.novaGateway)
+        async let a1111 = probeImage(automatic1111ServerURL, path: "/sdapi/v1/sd-models")
+        async let swarm = probeImage(swarmUIServerURL, path: "/API/ListModels")
+        let results = await (ollama, mlx, tinyLLM, tinyChat, openWebUI, nova, a1111, swarm)
+        let openRouter = cloudConfigured(.openRouter)
+        let openAI = cloudConfigured(.openAI)
 
         await MainActor.run {
-            isOllamaAvailable = ollama
-            isMLXAvailable = mlx
-            isTinyLLMAvailable = tinyLLM
-            isTinyChatAvailable = tinyChat
-            isOpenWebUIAvailable = openWebUI
-            isComfyUIAvailable = comfyUI
-            isAutomatic1111Available = automatic1111
-            isSwarmUIAvailable = swarmUI
-
-            // Check cloud services availability (based on API key presence)
-            isOpenAIAvailable = !openAIAPIKey.isEmpty
-            isGoogleCloudAvailable = !googleCloudAPIKey.isEmpty
-            isAzureAvailable = !azureAPIKey.isEmpty && !azureEndpoint.isEmpty
-            isAWSAvailable = !awsAccessKey.isEmpty && !awsSecretKey.isEmpty
-            isIBMWatsonAvailable = !ibmWatsonAPIKey.isEmpty && !ibmWatsonURL.isEmpty
-
+            isOllamaAvailable = results.0
+            isMLXAvailable = results.1
+            isTinyLLMAvailable = results.2
+            isTinyChatAvailable = results.3
+            isOpenWebUIAvailable = results.4
+            isNovaGatewayAvailable = results.5
+            isAutomatic1111Available = results.6
+            isSwarmUIAvailable = results.7
+            isOpenRouterAvailable = openRouter
+            isOpenAIAvailable = openAI
             lastRefreshDate = Date()
-        }
-
-        // Load Ollama models if available
-        if ollama {
-            await loadOllamaModels()
+            updateStatus()
         }
     }
 
-    // MARK: - AI Backend Checks
+    private func probeImage(_ base: String, path: String) async -> Bool {
+        guard let url = URL(string: EndpointPolicy.normalizedBaseURL(base) + path) else { return false }
+        return await reachable(URLRequest(url: url, timeoutInterval: probeTimeout))
+    }
 
-    private func checkOllamaAvailability() async -> Bool {
-        guard let url = URL(string: "\(ollamaServerURL)/api/tags") else { return false }
+    /// "Test connection": live-probe the selected backend (or the whole Auto chain).
+    @discardableResult
+    func testConnection() async -> Bool {
+        if activeBackend == .auto {
+            await refreshAllBackends()
+            return await MainActor.run { statusOnline }
+        }
+        let ok = await probe(activeBackend)
+        await MainActor.run {
+            setAvailable(activeBackend, ok)
+            lastRefreshDate = Date()
+            updateStatus()
+        }
+        return ok
+    }
 
-        do {
-            let (_, response) = try await URLSession.shared.data(from: url)
-            return (response as? HTTPURLResponse)?.statusCode == 200
-        } catch {
-            return false
+    func setAvailable(_ backend: LLMBackendType, _ value: Bool) {
+        switch backend {
+        case .auto: break
+        case .ollama: isOllamaAvailable = value
+        case .mlx: isMLXAvailable = value
+        case .tinyLLM: isTinyLLMAvailable = value
+        case .tinyChat: isTinyChatAvailable = value
+        case .openWebUI: isOpenWebUIAvailable = value
+        case .novaGateway: isNovaGatewayAvailable = value
+        case .openRouter: isOpenRouterAvailable = value
+        case .openAI: isOpenAIAvailable = value
         }
     }
 
-    private func checkMLXAvailability() async -> Bool {
-        let fileManager = FileManager.default
-        let pythonPaths = [
-            "/opt/homebrew/bin/python3",
-            "/usr/local/bin/python3",
-            "/usr/bin/python3"
-        ]
-
-        for path in pythonPaths {
-            if fileManager.fileExists(atPath: path) {
-                return true
-            }
+    /// Recompute the status badge from cached availability.
+    func updateStatus() {
+        guard aiEnabled else {
+            statusBackend = nil
+            statusOnline = false
+            return
         }
-
-        return false
-    }
-
-    private func checkTinyLLMAvailability() async -> Bool {
-        guard let url = URL(string: "\(tinyLLMServerURL)/v1/models") else { return false }
-
-        do {
-            let (_, response) = try await URLSession.shared.data(from: url)
-            return (response as? HTTPURLResponse)?.statusCode == 200
-        } catch {
-            return false
+        if activeBackend == .auto {
+            let first = autoChain().first
+            statusBackend = first
+            statusOnline = first != nil
+        } else {
+            statusBackend = activeBackend
+            statusOnline = isAvailable(activeBackend)
         }
     }
 
-    private func checkTinyChatAvailability() async -> Bool {
-        guard let url = URL(string: "\(tinyChatServerURL)/api/health") else { return false }
-
-        do {
-            let (_, response) = try await URLSession.shared.data(from: url)
-            return (response as? HTTPURLResponse)?.statusCode == 200
-        } catch {
-            return false
-        }
-    }
-
-    private func checkOpenWebUIAvailability() async -> Bool {
-        // Try both common ports
-        let urls = [
-            URL(string: "\(openWebUIServerURL)/"),
-            URL(string: "http://localhost:3000/"),
-            URL(string: "http://localhost:8080/")
-        ].compactMap { $0 }
-
-        for url in urls {
-            do {
-                let (_, response) = try await URLSession.shared.data(from: url)
-                if (response as? HTTPURLResponse)?.statusCode == 200 {
-                    return true
-                }
-            } catch {
-                continue
-            }
-        }
-
-        return false
-    }
-
-    // MARK: - Image Generation Backend Checks
-
-    private func checkComfyUIAvailability() async -> Bool {
-        guard let url = URL(string: "\(comfyUIServerURL)/system_stats") else { return false }
-
-        do {
-            let (_, response) = try await URLSession.shared.data(from: url)
-            return (response as? HTTPURLResponse)?.statusCode == 200
-        } catch {
-            return false
-        }
-    }
-
-    private func checkAutomatic1111Availability() async -> Bool {
-        guard let url = URL(string: "\(automatic1111ServerURL)/sdapi/v1/sd-models") else { return false }
-
-        do {
-            let (_, response) = try await URLSession.shared.data(from: url)
-            return (response as? HTTPURLResponse)?.statusCode == 200
-        } catch {
-            return false
-        }
-    }
-
-    private func checkSwarmUIAvailability() async -> Bool {
-        guard let url = URL(string: "\(swarmUIServerURL)/API/ListModels") else { return false }
-
-        do {
-            let (_, response) = try await URLSession.shared.data(from: url)
-            return (response as? HTTPURLResponse)?.statusCode == 200
-        } catch {
-            return false
-        }
-    }
-
-    // MARK: - Ollama Models
-
-    private func loadOllamaModels() async {
-        guard let url = URL(string: "\(ollamaServerURL)/api/tags") else { return }
-
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-
-            struct OllamaResponse: Codable {
-                struct Model: Codable {
-                    let name: String
-                }
-                let models: [Model]
-            }
-
-            let response = try JSONDecoder().decode(OllamaResponse.self, from: data)
-            let modelNames = response.models.map { $0.name }
-
-            await MainActor.run {
-                ollamaModels = modelNames
-                if !modelNames.isEmpty && !modelNames.contains(selectedOllamaModel) {
-                    selectedOllamaModel = modelNames.first ?? "mistral:latest"
-                }
-            }
-        } catch {
-            print("Failed to load Ollama models: \(error)")
-        }
+    /// One-line status for the badge and the widget.
+    var statusText: String {
+        guard aiEnabled else { return "AI off: scripted narrator" }
+        guard let backend = statusBackend else { return "Narrator away: no backend reachable" }
+        return statusOnline ? "Narrator online: \(backend.shortName)" : "Narrator away: \(backend.shortName) unreachable"
     }
 
     // MARK: - Configuration Persistence
 
-    private func loadConfiguration() {
-        let defaults = UserDefaults.standard
+    func loadConfiguration() {
+        aiEnabled = defaults.object(forKey: "AIBackend_Enabled") as? Bool ?? true
+        activeBackend = LLMBackendType.migrating(defaults.string(forKey: "AIBackend_Active"))
 
-        ollamaServerURL = defaults.string(forKey: "AIBackend_OllamaURL") ?? "http://localhost:11434"
-        tinyLLMServerURL = defaults.string(forKey: "AIBackend_TinyLLMURL") ?? "http://localhost:8000"
-        tinyChatServerURL = defaults.string(forKey: "AIBackend_TinyChatURL") ?? "http://localhost:8000"
-        openWebUIServerURL = defaults.string(forKey: "AIBackend_OpenWebUIURL") ?? "http://localhost:8080"
-        comfyUIServerURL = defaults.string(forKey: "AIBackend_ComfyUIURL") ?? "http://localhost:8188"
+        ollamaServerURL = defaults.string(forKey: "AIBackend_OllamaURL") ?? LLMBackendType.ollama.defaultURL
+        tinyLLMServerURL = defaults.string(forKey: "AIBackend_TinyLLMURL") ?? LLMBackendType.tinyLLM.defaultURL
+        tinyChatServerURL = defaults.string(forKey: "AIBackend_TinyChatURL") ?? LLMBackendType.tinyChat.defaultURL
+        openWebUIServerURL = defaults.string(forKey: "AIBackend_OpenWebUIURL") ?? LLMBackendType.openWebUI.defaultURL
+        novaGatewayServerURL = defaults.string(forKey: "AIBackend_NovaGatewayURL") ?? LLMBackendType.novaGateway.defaultURL
+        openRouterServerURL = defaults.string(forKey: "AIBackend_OpenRouterURL") ?? LLMBackendType.openRouter.defaultURL
+        openAIServerURL = defaults.string(forKey: "AIBackend_OpenAIURL") ?? LLMBackendType.openAI.defaultURL
         automatic1111ServerURL = defaults.string(forKey: "AIBackend_Automatic1111URL") ?? "http://localhost:7860"
         swarmUIServerURL = defaults.string(forKey: "AIBackend_SwarmUIURL") ?? "http://localhost:7801"
-        selectedOllamaModel = defaults.string(forKey: "AIBackend_OllamaModel") ?? "mistral:latest"
 
-        // Cloud API Keys (stored securely in Keychain)
-        openAIAPIKey = Self.loadFromKeychain(key: "AIBackend_OpenAI_Key", service: Self.keychainServiceName) ?? ""
-        googleCloudAPIKey = Self.loadFromKeychain(key: "AIBackend_GoogleCloud_Key", service: Self.keychainServiceName) ?? ""
-        azureAPIKey = Self.loadFromKeychain(key: "AIBackend_Azure_Key", service: Self.keychainServiceName) ?? ""
-        azureEndpoint = Self.loadFromKeychain(key: "AIBackend_Azure_Endpoint", service: Self.keychainServiceName) ?? ""
-        awsAccessKey = Self.loadFromKeychain(key: "AIBackend_AWS_AccessKey", service: Self.keychainServiceName) ?? ""
-        awsSecretKey = Self.loadFromKeychain(key: "AIBackend_AWS_SecretKey", service: Self.keychainServiceName) ?? ""
-        awsRegion = defaults.string(forKey: "AIBackend_AWS_Region") ?? "us-east-1"
-        ibmWatsonAPIKey = Self.loadFromKeychain(key: "AIBackend_IBM_Key", service: Self.keychainServiceName) ?? ""
-        ibmWatsonURL = Self.loadFromKeychain(key: "AIBackend_IBM_URL", service: Self.keychainServiceName) ?? ""
+        selectedOpenRouterModel = defaults.string(forKey: "AIBackend_OpenRouterModel") ?? OpenRouterProvider.defaultModel
+        selectedOpenAIModel = defaults.string(forKey: "AIBackend_OpenAIModel") ?? Self.defaultOpenAIModel
+        selectedMLXModel = defaults.string(forKey: "AIBackend_MLXModel") ?? Self.defaultMLXModel
+        tinyLLMModel = defaults.string(forKey: "AIBackend_TinyLLMModel") ?? "default"
 
-        if let backendRaw = defaults.string(forKey: "AIBackend_Active"),
-           let backend = AIBackend(rawValue: backendRaw) {
-            activeBackend = backend
-        }
-
-        // Multi-model load balancer configuration
         useAllLocalModels = defaults.bool(forKey: "AIBackend_UseAllLocalModels")
         enableAllFrontierModels = defaults.bool(forKey: "AIBackend_EnableAllFrontierModels")
         useNovaGateway = defaults.bool(forKey: "AIBackend_UseNovaGateway")
-        novaGatewayServerURL = defaults.string(forKey: "AIBackend_NovaGatewayURL") ?? ModelRegistry.novaGatewayDefaultURL
-        openRouterServerURL = defaults.string(forKey: "AIBackend_OpenRouterURL") ?? OpenRouterProvider.baseURL
-        selectedOpenRouterModel = defaults.string(forKey: "AIBackend_OpenRouterModel") ?? OpenRouterProvider.defaultModel
+        updateStatus()
     }
 
+    /// Persist settings (URLs, models, toggles). Secrets are never written here.
     func saveConfiguration() {
-        let defaults = UserDefaults.standard
+        defaults.set(aiEnabled, forKey: "AIBackend_Enabled")
+        defaults.set(activeBackend.rawValue, forKey: "AIBackend_Active")
 
         defaults.set(ollamaServerURL, forKey: "AIBackend_OllamaURL")
         defaults.set(tinyLLMServerURL, forKey: "AIBackend_TinyLLMURL")
         defaults.set(tinyChatServerURL, forKey: "AIBackend_TinyChatURL")
         defaults.set(openWebUIServerURL, forKey: "AIBackend_OpenWebUIURL")
-        defaults.set(comfyUIServerURL, forKey: "AIBackend_ComfyUIURL")
+        defaults.set(novaGatewayServerURL, forKey: "AIBackend_NovaGatewayURL")
+        defaults.set(openRouterServerURL, forKey: "AIBackend_OpenRouterURL")
+        defaults.set(openAIServerURL, forKey: "AIBackend_OpenAIURL")
         defaults.set(automatic1111ServerURL, forKey: "AIBackend_Automatic1111URL")
         defaults.set(swarmUIServerURL, forKey: "AIBackend_SwarmUIURL")
-        defaults.set(selectedOllamaModel, forKey: "AIBackend_OllamaModel")
 
-        // Cloud API Keys (stored securely in Keychain)
-        Self.saveToKeychain(key: "AIBackend_OpenAI_Key", value: openAIAPIKey, service: Self.keychainServiceName)
-        Self.saveToKeychain(key: "AIBackend_GoogleCloud_Key", value: googleCloudAPIKey, service: Self.keychainServiceName)
-        Self.saveToKeychain(key: "AIBackend_Azure_Key", value: azureAPIKey, service: Self.keychainServiceName)
-        Self.saveToKeychain(key: "AIBackend_Azure_Endpoint", value: azureEndpoint, service: Self.keychainServiceName)
-        Self.saveToKeychain(key: "AIBackend_AWS_AccessKey", value: awsAccessKey, service: Self.keychainServiceName)
-        Self.saveToKeychain(key: "AIBackend_AWS_SecretKey", value: awsSecretKey, service: Self.keychainServiceName)
-        defaults.set(awsRegion, forKey: "AIBackend_AWS_Region")
-        Self.saveToKeychain(key: "AIBackend_IBM_Key", value: ibmWatsonAPIKey, service: Self.keychainServiceName)
-        Self.saveToKeychain(key: "AIBackend_IBM_URL", value: ibmWatsonURL, service: Self.keychainServiceName)
+        defaults.set(selectedOpenRouterModel, forKey: "AIBackend_OpenRouterModel")
+        defaults.set(selectedOpenAIModel, forKey: "AIBackend_OpenAIModel")
+        defaults.set(selectedMLXModel, forKey: "AIBackend_MLXModel")
+        defaults.set(tinyLLMModel, forKey: "AIBackend_TinyLLMModel")
 
-        defaults.set(activeBackend.rawValue, forKey: "AIBackend_Active")
-
-        // Multi-model load balancer configuration
         defaults.set(useAllLocalModels, forKey: "AIBackend_UseAllLocalModels")
         defaults.set(enableAllFrontierModels, forKey: "AIBackend_EnableAllFrontierModels")
         defaults.set(useNovaGateway, forKey: "AIBackend_UseNovaGateway")
-        defaults.set(novaGatewayServerURL, forKey: "AIBackend_NovaGatewayURL")
-        defaults.set(openRouterServerURL, forKey: "AIBackend_OpenRouterURL")
-        defaults.set(selectedOpenRouterModel, forKey: "AIBackend_OpenRouterModel")
+        updateStatus()
     }
-}
-
-// MARK: - SwiftUI View for Backend Selection
-
-struct AIBackendSelectionView: View {
-    @ObservedObject var manager = AIBackendManager.shared
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("AI Backend Configuration")
-                    .font(.title2)
-                    .bold()
-
-                Spacer()
-
-                Button("Refresh Status") {
-                    Task {
-                        await manager.refreshAllBackends()
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .padding()
-
-            Divider()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // AI Text Backends Section
-                    Section {
-                        Text("AI Text Backends")
-                            .font(.headline)
-
-                        BackendStatusRow(
-                            icon: "brain.head.profile",
-                            name: "Ollama",
-                            isAvailable: manager.isOllamaAvailable,
-                            url: manager.ollamaServerURL
-                        )
-
-                        BackendStatusRow(
-                            icon: "cpu",
-                            name: "MLX Toolkit",
-                            isAvailable: manager.isMLXAvailable,
-                            url: "Apple Silicon Native"
-                        )
-
-                        BackendStatusRow(
-                            icon: "bolt.fill",
-                            name: "TinyLLM",
-                            isAvailable: manager.isTinyLLMAvailable,
-                            url: manager.tinyLLMServerURL
-                        )
-
-                        BackendStatusRow(
-                            icon: "message.fill",
-                            name: "TinyChat",
-                            isAvailable: manager.isTinyChatAvailable,
-                            url: manager.tinyChatServerURL
-                        )
-
-                        BackendStatusRow(
-                            icon: "globe",
-                            name: "OpenWebUI",
-                            isAvailable: manager.isOpenWebUIAvailable,
-                            url: manager.openWebUIServerURL
-                        )
-                    }
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.gray.opacity(0.1))
-                    )
-
-                    // Image Generation Backends Section
-                    Section {
-                        Text("Image Generation Backends")
-                            .font(.headline)
-
-                        BackendStatusRow(
-                            icon: "photo.fill",
-                            name: "ComfyUI",
-                            isAvailable: manager.isComfyUIAvailable,
-                            url: manager.comfyUIServerURL
-                        )
-
-                        BackendStatusRow(
-                            icon: "paintbrush.fill",
-                            name: "Automatic1111",
-                            isAvailable: manager.isAutomatic1111Available,
-                            url: manager.automatic1111ServerURL
-                        )
-
-                        BackendStatusRow(
-                            icon: "wand.and.stars",
-                            name: "SwarmUI",
-                            isAvailable: manager.isSwarmUIAvailable,
-                            url: manager.swarmUIServerURL
-                        )
-                    }
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.gray.opacity(0.1))
-                    )
-
-                    // Ollama Configuration
-                    if manager.isOllamaAvailable {
-                        Section {
-                            Text("Ollama Configuration")
-                                .font(.headline)
-
-                            Picker("Model", selection: $manager.selectedOllamaModel) {
-                                ForEach(manager.ollamaModels, id: \.self) { model in
-                                    Text(model).tag(model)
-                                }
-                            }
-                            .onChange(of: manager.selectedOllamaModel) { _, _ in
-                                manager.saveConfiguration()
-                            }
-                        }
-                        .padding()
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.gray.opacity(0.1))
-                        )
-                    }
-                }
-                .padding()
-            }
-
-            Divider()
-
-            // Footer
-            HStack {
-                if let lastRefresh = manager.lastRefreshDate {
-                    Text("Last updated: \(lastRefresh.formatted(.relative(presentation: .named)))")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                Button("Done") {
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .padding()
-        }
-        .frame(width: 700, height: 600)
-    }
-}
-
-// MARK: - Backend Status Row
-
-struct BackendStatusRow: View {
-    let icon: String
-    let name: String
-    let isAvailable: Bool
-    let url: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 20))
-                .foregroundColor(.blue)
-                .frame(width: 30)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(name)
-                    .font(.system(size: 14, weight: .semibold))
-
-                Text(url)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-
-            Text(isAvailable ? "Available" : "Unavailable")
-                .font(.caption)
-                .foregroundColor(isAvailable ? .green : .secondary)
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-// MARK: - Preview
-
-#Preview {
-    AIBackendSelectionView()
 }

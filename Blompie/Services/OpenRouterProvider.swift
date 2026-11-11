@@ -1,6 +1,6 @@
 //
 //  OpenRouterProvider.swift
-//  AIStudio
+//  Blompie (ported from AIStudio's shared multi-model load balancer)
 //
 //  Created by Jordan Koch on 2026-02-19.
 //  Copyright © 2026 Jordan Koch. All rights reserved.
@@ -25,11 +25,14 @@ enum OpenRouterProvider {
     static var modelsURL: String { "\(baseURL)/models" }
 
     /// Attribution headers required/recommended by OpenRouter.
-    static let referer = "https://github.com/kochj23/AIStudio"
-    static let title = "AIStudio"
+    static let referer = "https://github.com/kochj23/Blompie"
+    static let title = "Blompie"
 
-    /// macOS Keychain service used to store the OpenRouter API key.
-    static let keychainService = "com.jkoch.aistudio.openrouter"
+    /// macOS Keychain service used to store Blompie's own OpenRouter API key.
+    static let keychainService = "com.jordankoch.Blompie.openrouter"
+    /// Service Blompie <= 1.1.2 shared with AIStudio. Read once (if Blompie's
+    /// own item is empty), copied to `keychainService`, never written or deleted.
+    static let legacyKeychainService = "com.jkoch.aistudio.openrouter"
 
     /// Hardcoded fallback model list used when the live `/models` fetch fails.
     /// A few popular current models spanning providers.
@@ -107,8 +110,13 @@ enum OpenAICompatibleRequest {
         stream: Bool,
         headers: [String: String] = [:]
     ) throws -> URLRequest {
-        guard let url = URL(string: endpoint) else {
+        guard let url = URL(string: endpoint), url.scheme != nil, url.host != nil else {
             throw LLMError.invalidURL
+        }
+        // Never send a credential over plain http (cloud endpoints are https only).
+        let carriesSecret = headers.keys.contains { $0.caseInsensitiveCompare("Authorization") == .orderedSame }
+        if carriesSecret && !EndpointPolicy.isSecure(url) {
+            throw LLMError.insecureEndpoint
         }
 
         var request = URLRequest(url: url)
@@ -130,6 +138,33 @@ enum OpenAICompatibleRequest {
     }
 }
 
+// MARK: - Endpoint policy
+
+/// URL rules shared by every backend request.
+enum EndpointPolicy {
+    /// True for `https://` URLs with a host. API keys are only ever sent to these.
+    static func isSecure(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == "https" && !(url.host ?? "").isEmpty
+    }
+
+    /// True for a usable `http(s)://host[:port][/path]` base URL typed by the user.
+    static func isValidBaseURL(_ string: String) -> Bool {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+              let host = url.host, !host.isEmpty,
+              url.user == nil, url.password == nil else { return false }
+        return true
+    }
+
+    /// Trim whitespace and trailing slashes so `"\(base)/api/chat"` is well formed.
+    static func normalizedBaseURL(_ string: String) -> String {
+        var s = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        while s.hasSuffix("/") { s.removeLast() }
+        return s
+    }
+}
+
 // MARK: - Automatic failover selection
 
 /// Pure selection logic for health-checked automatic failover — the single-user
@@ -137,8 +172,9 @@ enum OpenAICompatibleRequest {
 /// of per-backend availability, pick which backend to use. No network here so it
 /// is fully unit-testable; the manager injects live availability.
 enum FailoverPlanner {
-    /// Default ordered preference chain: local-first, then frontier.
-    static let defaultChain: [LLMBackendType] = [.ollama, .mlx, .openRouter]
+    /// Default ordered preference chain (the `.auto` order): local first, then
+    /// gateway, then frontier/cloud.
+    static let defaultChain: [LLMBackendType] = LLMBackendType.autoOrder
 
     /// The ordered subset of `chain` that is currently available.
     static func orderedHealthy(

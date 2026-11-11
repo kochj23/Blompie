@@ -11,6 +11,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Performance improvements
 - Additional features based on community feedback
 
+## [1.2.0] (build 6) - 2026-11-11
+
+AI parity with the other games: the AI is optional, every backend is configurable, and a failed AI call never loses a turn.
+
+### Added
+- Global **Use AI narrator** toggle (Settings > AI Narrator). Off: the scripted narrator runs the game and Blompie makes no AI network calls.
+- Scripted fallback (`ScriptedNarrator`, `Blompie/Narration.swift`): a small deterministic rule-based world (7 places, items, 3 characters) that keeps the game fully playable when the AI is off or unreachable. Mid-story outages show a short "narrator away" line and keep the current actions. Scripted text is never fed back to the model.
+- Backend picker over the canonical ids `auto, ollama, mlx, tinyllm, tinychat, openwebui, novagateway, openrouter, openai`, with a per-backend model picker and editable endpoint URLs. TinyLLM, TinyChat, OpenWebUI, Nova Gateway and OpenAI now drive the story path (they were probed but unused, or threw).
+- Auto mode: reachable backends tried in a fixed order (Ollama, MLX, TinyChat, TinyLLM, OpenWebUI, Nova Gateway, OpenRouter, OpenAI); availability re-probed after 30 s; failed backends marked unreachable.
+- Timeouts (local 180 s, cloud 60 s, probes 3 s) and bounded retries (2 attempts, 408/429/5xx/transport only) via `Retry.http` (copied from GTNW `Retry.swift`, injectable transport).
+- `NarrationValidator`: strips `<think>` blocks, chat-template tokens and control/bidi characters, rejects empty or prompt-echo replies (next backend or scripted narrator answers), clips narration at 6,000 chars; suggested actions trimmed, de-duplicated, max 80 chars and 6 items.
+- Narrator status badge in the toolbar (backend + online/away/AI off, and who narrated the last turn); per-backend status rows and **Test connection** in Settings; `GET /api/status` reports `ai.enabled/backend/active/online`; the widget shows the active backend or "Scripted".
+- OpenAI key field (Keychain service `com.jordankoch.Blompie`).
+- Play history: `turn`/`scene` events carry `source` (`llm`, `fallback`, `scripted`), the `start` event `ai_enabled`, and the summary a `fallbacks` count. A fallback turn is a completed turn (no `failed` flag).
+
+### Changed
+- The story path and the Nova API model list use the configured Ollama URL (was hardcoded `localhost:11434`). `OllamaService` takes a base URL.
+- Single request path for every backend (`AIBackendManager.send`); the balancer reuses it, so retries, timeouts, https-only keys and validation are identical. Balancer failure falls through to the selected backend / Auto chain, then to the scripted narrator.
+- OpenRouter key moved to Blompie's own Keychain service `com.jordankoch.Blompie.openrouter`; the AIStudio-shared item `com.jkoch.aistudio.openrouter` is read once, copied, and left untouched. OpenRouter attribution is now `HTTP-Referer: https://github.com/kochj23/Blompie`, `X-Title: Blompie`.
+- Persisted backend values from 1.1.x (display names such as `MLX Toolkit`) migrate to the lowercase ids; removed cloud backends become `auto`.
+- Clearing a key field deletes the Keychain item instead of storing an empty string. Legacy cloud keys left in `UserDefaults` are moved (OpenAI) or deleted (removed backends).
+- A narration that lands after a turn was already recorded no longer creates a stray `scene` play event (scene = opening narration only).
+
+### Security
+- Requests carrying an API key are refused unless the URL is https; local backends never receive a key.
+- Under XCTest the shared AI manager uses its own defaults suite and Keychain service, never migrates the legacy key and never probes, so tests cannot touch real settings or secrets.
+
+### Removed
+- Google Cloud, Microsoft Azure, AWS and IBM Watson backends (they always threw and never worked; OpenRouter covers frontier models).
+- Dead code: the never-compiled `EthicalAIGuardian.swift`, `AIBackendManager+Enhanced.swift`, `AIBackendManager+EthicalGuardian.swift`, `AIBackendStatusMenu.swift`; the unused `AIBackendSelectionView`; the compiled-but-unused `Blompie/AICapabilities/*` (which read `OPENAI_API_KEY` from the environment); the duplicate per-backend request code in `+Balancer`; `AIError` (folded into `LLMError`).
+- ComfyUI image generation (detected but never implemented).
+
+### Tests
+- `AIParityTests.swift`: 50 tests in all 7 categories (Unit 10, Security 10, Retry 8, Performance 5, Integration 4, Functional 8, Frame 5), no network (stub transport, stub narrator).
+- Tests of removed types rewritten against their replacements: backend enum/error tests use `LLMBackendType`/`LLMError` (incl. legacy-value migration); source-reading Keychain tests are now behavioural round-trip/migration tests; `EthicalAIGuardianSourceTests` became `AIOutputValidationSecurityTests`; AICapabilities/AttackType tests replaced by narration-source and scripted-narrator tests; `testDefaultActiveBackend` now asserts a real default.
+- Suite: 360 tests, all passing.
+
 ## [1.1.2] (build 5) - 2026-10-18
 
 ### Added

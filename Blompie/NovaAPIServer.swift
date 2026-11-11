@@ -18,7 +18,7 @@
 //    POST /api/adventure/:id/undo               — undo last action
 //    DELETE /api/adventure/:id                  — end/delete session
 //
-//  Action response is async — Ollama generates the reply.
+//  Action response is async — the AI narrator (or the scripted fallback) generates the reply.
 //  Use polling on /state or /history to detect when the response arrives.
 //
 //  Security (2026-10): loopback only; every request needs
@@ -168,7 +168,13 @@ class NovaAPIServer {
             return json(200, [
                 "status": "running", "app": "Blompie", "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
                 "port": "\(port)", "uptimeSeconds": Int(Date().timeIntervalSince(startTime)),
-                "activeSessions": sessions.count
+                "activeSessions": sessions.count,
+                "ai": [
+                    "enabled": AIBackendManager.shared.aiEnabled,
+                    "backend": AIBackendManager.shared.activeBackend.rawValue,
+                    "active": AIBackendManager.shared.statusBackend?.rawValue ?? "scripted",
+                    "online": AIBackendManager.shared.statusOnline
+                ] as [String: Any]
             ] as [String: Any])
 
         case ("GET", "/api/ping"):
@@ -353,9 +359,10 @@ class NovaAPIServer {
     }
 
     private func fetchOllamaModels() async -> [String]? {
-        guard let url = URL(string: "http://127.0.0.1:11434/api/tags") else { return nil }
+        guard AIBackendManager.shared.aiEnabled,
+              let url = URL(string: "\(AIBackendManager.shared.baseURL(for: .ollama))/api/tags") else { return nil }
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await URLSession.shared.data(for: URLRequest(url: url, timeoutInterval: 5))
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let models = json["models"] as? [[String: Any]] {
                 return models.compactMap { $0["name"] as? String }

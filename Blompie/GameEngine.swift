@@ -98,8 +98,18 @@ class GameEngine: ObservableObject {
     private var actionsSinceModelSwitch: Int = 0
 
     private var conversationHistory: [OllamaMessage] = []
-    private let ollamaService = OllamaService()
     private let maxConversationHistorySize = 50
+
+    // AI layer. `narrator` is the AI backend manager in the app; tests inject a stub.
+    // `scripted` answers whenever the AI is off, unreachable or returns nonsense,
+    // so a turn is never lost.
+    let narrator: StoryNarrating
+    let scripted = ScriptedNarrator()
+    /// Who narrated the last turn (AI backend, fallback or scripted).
+    @Published private(set) var lastNarrationSource: NarrationSource?
+    /// True when the current story was opened by the scripted narrator.
+    private(set) var storyIsScripted = false
+    private(set) var fallbackTurns = 0
 
     // Play-history logging (Nova Games DB). Only the app window's engine has a logger;
     // NovaAPIServer sessions and tests create engines without one.
@@ -114,8 +124,9 @@ class GameEngine: ObservableObject {
     private var playMoments: [[String: Any]] = []
     static let maxPlayMoments = 30
 
-    init(playLogger: PlayLogger? = nil) {
+    init(playLogger: PlayLogger? = nil, narrator: StoryNarrating = AIBackendManager.shared) {
         self.playLogger = playLogger
+        self.narrator = narrator
         loadSettings()
         initializeAchievements()
         Task {
@@ -124,8 +135,13 @@ class GameEngine: ObservableObject {
     }
 
     func refreshAvailableModels() async {
+        guard narrator.aiEnabled else {
+            if availableModels.isEmpty { availableModels = ["mistral", "llama3.2", "llama3.1", "codellama", "phi"] }
+            return
+        }
         do {
-            let models = try await ollamaService.fetchInstalledModels()
+            let service = OllamaService(baseURL: AIBackendManager.shared.baseURL(for: .ollama))
+            let models = try await service.fetchInstalledModels()
             availableModels = models.isEmpty ? ["mistral", "llama3.2", "llama3.1", "codellama", "phi"] : models
         } catch {
             availableModels = ["mistral", "llama3.2", "llama3.1", "codellama", "phi"]
@@ -525,11 +541,14 @@ class GameEngine: ObservableObject {
         inventory = []
         locationHistory = []
         stateHistory = []
+        storyIsScripted = false
+        fallbackTurns = 0
+        scripted.reset()
 
         beginPlaySession(from: "new", slot: "", start: ["setting": "new adventure"])
 
         addMessage("=== BLOMPIE ===")
-        addMessage("A Text Adventure Powered by Ollama")
+        addMessage(narrator.aiEnabled ? "A Text Adventure (AI narrator)" : "A Text Adventure (scripted narrator, AI off)")
         addMessage("")
         addMessage("Initializing game world...")
         addMessage("")
@@ -619,7 +638,7 @@ class GameEngine: ObservableObject {
             content: "Start a new text adventure. Describe the opening scene and provide the first set of actions."
         ))
 
-        await sendToOllama()
+        await sendToNarrator(action: nil)
         isLoading = false
     }
 
@@ -631,7 +650,7 @@ class GameEngine: ObservableObject {
             content: userMessage
         ))
 
-        await sendToOllama()
+        await sendToNarrator(action: userMessage)
         isLoading = false
     }
 
@@ -668,78 +687,78 @@ class GameEngine: ObservableObject {
         conversationHistory = Array(systemMessages) + [summaryMessage] + remainingMessages
     }
 
-    private func sendToOllama() async {
-        ollamaService.model = selectedModel
-        ollamaService.temperature = temperature
+    /// Narrate the opening (`action == nil`) or one player action. AI first (when
+    /// on); any failure or invalid reply falls back to the scripted narrator, so
+    /// the turn always completes. Scripted text is shown but never fed back to the model.
+    private func sendToNarrator(action: String?) async {
         streamingText = ""
-        var fullResponse = ""
+        guard narrator.aiEnabled else {
+            applyScripted(action: action, source: .scripted)
+            return
+        }
+
+        var streamed = ""
+        let onChunk: ((String) -> Void)? = streamingEnabled ? { chunk in
+            Task { @MainActor in
+                guard self.isLoading else { return }   // ignore chunks that arrive after the turn ended
+                streamed += chunk
+                self.streamingText = streamed
+            }
+        } : nil
 
         do {
-            // Multi-model load balancing: when any balancer toggle is enabled,
-            // route story/narration through balanced dispatch across the enabled
-            // pool (Ollama + MLX locals, OpenRouter frontier, optional Nova). This
-            // path is non-streaming; a nil result (balancing off / empty pool)
-            // falls through cleanly to the existing Ollama path.
-            let balanced = (try? await AIBackendManager.shared.generateBalancedNarration(
+            let reply = try await narrator.narrate(
                 messages: conversationHistory,
+                model: selectedModel,
                 temperature: temperature,
-                maxTokens: nil
-            )) ?? nil
+                onChunk: onChunk
+            )
+            if let tps = reply.tokensPerSecond { lastTokensPerSecond = tps }
 
-            if let balanced = balanced {
-                fullResponse = balanced
-            } else if streamingEnabled {
-                try await ollamaService.chatStreaming(messages: conversationHistory) { chunk in
-                    Task { @MainActor in
-                        fullResponse += chunk
-                        self.streamingText = fullResponse
-                    }
-                } onComplete: { tokensPerSecond in
-                    Task { @MainActor in
-                        if let tps = tokensPerSecond {
-                            self.lastTokensPerSecond = tps
-                        }
-                    }
-                }
-            } else {
-                fullResponse = try await ollamaService.chat(messages: conversationHistory)
-            }
-
-            conversationHistory.append(OllamaMessage(
-                role: "assistant",
-                content: fullResponse
-            ))
-
-            // Trim conversation history if it exceeds max size
+            conversationHistory.append(OllamaMessage(role: "assistant", content: reply.text))
             trimConversationHistory()
-
             streamingText = ""
 
-            // Parse response to extract narrative and actions
-            let narrative = parseOllamaResponse(fullResponse)
-            recordPlayNarration(narrative, failed: false)
-
-            if autoSaveEnabled {
-                saveGame(toSlot: "autosave")
-            }
-
-            // Sync to widget
-            SharedDataManager.shared.updateFromGameEngine(self)
+            let narrative = parseOllamaResponse(reply.text)
+            lastNarrationSource = .ai(reply.backend)
+            recordPlayNarration(narrative, failed: false, source: .ai(reply.backend))
+            finishTurn()
         } catch {
             streamingText = ""
-            recordPlayNarration("", failed: true)
-            addMessage("=== ERROR ===")
-            if let ollamaError = error as? OllamaError {
-                addMessage(ollamaError.errorDescription ?? error.localizedDescription)
-            } else {
-                addMessage("Error: \(error.localizedDescription)")
-            }
-            addMessage("")
-            addMessage("Troubleshooting:")
-            addMessage("• Make sure Ollama is running: ollama serve")
-            addMessage("• Verify \(selectedModel) model is installed: ollama pull \(selectedModel)")
-            addMessage("• Check Ollama is on port 11434")
+            print("[GameEngine] AI narration failed, using scripted narrator: \(error.localizedDescription)")
+            applyScripted(action: action, source: .fallback)
         }
+    }
+
+    /// The scripted narrator answers: the rule-based world when AI is off or the
+    /// story began scripted, otherwise a short "narrator away" line that keeps the
+    /// current actions so the player can simply try again.
+    private func applyScripted(action: String?, source: NarrationSource) {
+        let text: String
+        if let action {
+            text = (source == .scripted || storyIsScripted)
+                ? scripted.respond(to: action)
+                : scripted.awayLine(keeping: currentActions)
+        } else {
+            text = scripted.opening()
+            storyIsScripted = true
+        }
+        if source == .fallback {
+            fallbackTurns += 1
+            addMessage("[scripted narrator: AI unavailable]")
+        }
+        let narrative = parseOllamaResponse(text)
+        lastNarrationSource = source
+        recordPlayNarration(narrative, failed: false, source: source)
+        finishTurn()
+    }
+
+    private func finishTurn() {
+        if autoSaveEnabled {
+            saveGame(toSlot: "autosave")
+        }
+        // Sync to widget
+        SharedDataManager.shared.updateFromGameEngine(self)
     }
 
     @discardableResult
@@ -838,8 +857,8 @@ class GameEngine: ObservableObject {
             addMessage("")
         }
 
-        // Update current actions
-        currentActions = actions.filter { !$0.isEmpty }
+        // Update current actions (clamped: trimmed, <= 80 chars, de-duplicated, <= 6)
+        currentActions = NarrationValidator.sanitizeActions(actions)
 
         // If no actions were found, provide default exploration actions
         if currentActions.isEmpty {
@@ -881,6 +900,8 @@ class GameEngine: ObservableObject {
         messages = state.messages
         conversationHistory = state.conversationHistory
         currentActions = state.currentActions
+        storyIsScripted = false
+        scripted.reset()
         beginPlaySession(from: "load", slot: slotName,
                          start: ["slot": slotName, "resumed": true, "messages": state.messages.count])
     }
@@ -927,14 +948,15 @@ class GameEngine: ObservableObject {
         playMoments = []
         var detail = start
         detail["model"] = PlayJSON.clean(selectedModel, max: 64)
+        detail["ai_enabled"] = narrator.aiEnabled
         detail["tone"] = toneStyle.rawValue
         detail["detail"] = detailLevel.rawValue
         playLogger.beginSession(start: detail, summary: playSummary())
     }
 
     /// After the narrator answered (or failed): a `turn` event for a player action, or a `scene` event for the
-    /// opening narration. Never throws, never waits.
-    func recordPlayNarration(_ narrative: String, failed: Bool) {
+    /// opening narration. `source` (llm / fallback / scripted) is recorded when given. Never throws, never waits.
+    func recordPlayNarration(_ narrative: String, failed: Bool, source: NarrationSource? = nil) {
         defer { turnUnlocks = [] }
         guard let playLogger else { pendingPlayAction = nil; return }
         let excerpt = PlayJSON.clean(narrative, max: 400)
@@ -946,14 +968,17 @@ class GameEngine: ObservableObject {
             var detail: [String: Any] = ["turn": playTurn, "action": act, "narration": excerpt]
             if !turnUnlocks.isEmpty { detail["achievements"] = turnUnlocks }
             if failed { detail["failed"] = true }
+            if let source { detail["source"] = source.playValue }
             if !failed {
                 playMoments.append(["turn": playTurn, "action": PlayJSON.clean(act, max: 120),
                                     "narration": PlayJSON.clean(excerpt, max: 200)])
                 if playMoments.count > Self.maxPlayMoments { playMoments.removeFirst(playMoments.count - Self.maxPlayMoments) }
             }
             playLogger.record(kind: "turn", detail: detail, action: true, summary: playSummary())
-        } else if !failed && !excerpt.isEmpty {
+        } else if !failed && !excerpt.isEmpty && playTurn == 0 {
+            // Opening narration only: a reply that lands after a turn was already recorded is not a new scene.
             var detail: [String: Any] = ["narration": excerpt]
+            if let source { detail["source"] = source.playValue }
             if !turnUnlocks.isEmpty { detail["achievements"] = turnUnlocks }
             playLogger.record(kind: "scene", detail: detail, action: false, summary: playSummary())
         }
@@ -976,6 +1001,7 @@ class GameEngine: ObservableObject {
             "items_count": inventory.count,
             "npcs_count": metNPCs.count,
             "moments": playMoments,
+            "fallbacks": fallbackTurns,
         ]
         if !playSlot.isEmpty { s["slot"] = playSlot }
         if !lastNarration.isEmpty { s["last_scene"] = lastNarration }

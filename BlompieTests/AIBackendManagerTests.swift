@@ -2,8 +2,8 @@
 //  AIBackendManagerTests.swift
 //  BlompieTests
 //
-//  Tests for AIBackendManager configuration, Keychain helpers,
-//  backend enum cases, and error types.
+//  Tests for AIBackendManager configuration, Keychain services,
+//  the canonical backend enum and its legacy migration, and error types.
 //
 //  Created by Jordan Koch on 2026-05-01.
 //  Copyright 2026 Jordan Koch. All rights reserved.
@@ -12,89 +12,100 @@
 import XCTest
 @testable import Blompie
 
-// MARK: - AIBackend Enum Tests
+// MARK: - Backend Enum Tests (canonical LLMBackendType; the nested 10-case
+// AIBackendManager.AIBackend with throwing cloud stubs was removed in 1.2.0)
 
 final class AIBackendEnumTests: XCTestCase {
 
     func testAllBackendCases() {
-        let allCases = AIBackendManager.AIBackend.allCases
-        XCTAssertEqual(allCases.count, 10)
+        XCTAssertEqual(LLMBackendType.allCases.count, 9)
+        XCTAssertEqual(LLMBackendType.concrete.count, 8)
+        XCTAssertFalse(LLMBackendType.concrete.contains(.auto))
     }
 
     func testBackendRawValues() {
-        XCTAssertEqual(AIBackendManager.AIBackend.ollama.rawValue, "Ollama")
-        XCTAssertEqual(AIBackendManager.AIBackend.mlx.rawValue, "MLX Toolkit")
-        XCTAssertEqual(AIBackendManager.AIBackend.tinyLLM.rawValue, "TinyLLM")
-        XCTAssertEqual(AIBackendManager.AIBackend.tinyChat.rawValue, "TinyChat")
-        XCTAssertEqual(AIBackendManager.AIBackend.openWebUI.rawValue, "OpenWebUI")
-        XCTAssertEqual(AIBackendManager.AIBackend.openAI.rawValue, "OpenAI")
-        XCTAssertEqual(AIBackendManager.AIBackend.googleCloud.rawValue, "Google Cloud AI")
-        XCTAssertEqual(AIBackendManager.AIBackend.azureCognitive.rawValue, "Microsoft Azure")
-        XCTAssertEqual(AIBackendManager.AIBackend.awsAI.rawValue, "AWS AI Services")
-        XCTAssertEqual(AIBackendManager.AIBackend.ibmWatson.rawValue, "IBM Watson")
+        XCTAssertEqual(LLMBackendType.auto.rawValue, "auto")
+        XCTAssertEqual(LLMBackendType.ollama.rawValue, "ollama")
+        XCTAssertEqual(LLMBackendType.mlx.rawValue, "mlx")
+        XCTAssertEqual(LLMBackendType.tinyLLM.rawValue, "tinyllm")
+        XCTAssertEqual(LLMBackendType.tinyChat.rawValue, "tinychat")
+        XCTAssertEqual(LLMBackendType.openWebUI.rawValue, "openwebui")
+        XCTAssertEqual(LLMBackendType.novaGateway.rawValue, "novagateway")
+        XCTAssertEqual(LLMBackendType.openRouter.rawValue, "openrouter")
+        XCTAssertEqual(LLMBackendType.openAI.rawValue, "openai")
     }
 
     func testBackendDescriptions() {
-        for backend in AIBackendManager.AIBackend.allCases {
-            XCTAssertFalse(backend.description.isEmpty,
-                "\(backend.rawValue) should have a description")
+        for backend in LLMBackendType.allCases {
+            XCTAssertFalse(backend.description.isEmpty, "\(backend.rawValue) should have a description")
+            XCTAssertFalse(backend.displayName.isEmpty)
+            XCTAssertFalse(backend.icon.isEmpty)
         }
     }
 
     func testBackendSetupInstructions() {
-        for backend in AIBackendManager.AIBackend.allCases {
-            XCTAssertFalse(backend.setupInstructions.isEmpty,
-                "\(backend.rawValue) should have setup instructions")
+        // Every concrete network backend has a default URL; cloud defaults are https.
+        for backend in LLMBackendType.concrete where backend != .mlx {
+            XCTAssertTrue(EndpointPolicy.isValidBaseURL(backend.defaultURL), backend.rawValue)
         }
+        XCTAssertTrue(LLMBackendType.openRouter.defaultURL.hasPrefix("https://"))
+        XCTAssertTrue(LLMBackendType.openAI.defaultURL.hasPrefix("https://"))
     }
 
     func testOllamaBackendFromRawValue() {
-        let backend = AIBackendManager.AIBackend(rawValue: "Ollama")
-        XCTAssertEqual(backend, .ollama)
+        XCTAssertEqual(LLMBackendType(rawValue: "ollama"), .ollama)
+        // Values persisted by <= 1.1.2 (display-name raw values) migrate.
+        XCTAssertEqual(LLMBackendType.migrating("Ollama"), .ollama)
+        XCTAssertEqual(LLMBackendType.migrating("MLX Toolkit"), .mlx)
+        XCTAssertEqual(LLMBackendType.migrating("TinyLLM"), .tinyLLM)
+        XCTAssertEqual(LLMBackendType.migrating("TinyChat"), .tinyChat)
+        XCTAssertEqual(LLMBackendType.migrating("OpenWebUI"), .openWebUI)
+        XCTAssertEqual(LLMBackendType.migrating("OpenAI"), .openAI)
     }
 
     func testInvalidBackendRawValue() {
-        let backend = AIBackendManager.AIBackend(rawValue: "NotABackend")
-        XCTAssertNil(backend)
+        XCTAssertNil(LLMBackendType(rawValue: "NotABackend"))
+        // Removed stubs and junk fall back to Auto.
+        for removed in ["Google Cloud AI", "Microsoft Azure", "AWS AI Services", "IBM Watson", "NotABackend", ""] {
+            XCTAssertEqual(LLMBackendType.migrating(removed), .auto, removed)
+        }
+        XCTAssertEqual(LLMBackendType.migrating(nil), .auto)
     }
 }
 
-// MARK: - AIError Tests
+// MARK: - LLMError Tests (AIError was folded into the canonical LLMError)
 
 final class AIErrorTests: XCTestCase {
 
     func testNoBackendAvailableError() {
-        let error = AIError.noBackendAvailable
+        let error = LLMError.noBackendAvailable
         XCTAssertNotNil(error.errorDescription)
-        XCTAssertTrue(error.errorDescription!.contains("No AI backend"))
+        XCTAssertTrue(error.errorDescription!.contains("No LLM backend"))
     }
 
     func testInvalidURLError() {
-        let error = AIError.invalidURL
-        XCTAssertNotNil(error.errorDescription)
+        let error = LLMError.invalidURL
         XCTAssertTrue(error.errorDescription!.contains("Invalid"))
     }
 
     func testInvalidResponseError() {
-        let error = AIError.invalidResponse
-        XCTAssertNotNil(error.errorDescription)
+        XCTAssertNotNil(LLMError.invalidResponse.errorDescription)
     }
 
     func testHTTPError() {
-        let error = AIError.httpError(503)
-        XCTAssertNotNil(error.errorDescription)
+        let error = LLMError.httpError(503)
         XCTAssertTrue(error.errorDescription!.contains("503"))
     }
 
     func testNoResponseError() {
-        let error = AIError.noResponse
-        XCTAssertNotNil(error.errorDescription)
+        XCTAssertNotNil(LLMError.noResponse.errorDescription)
     }
 
     func testMLXNotImplementedError() {
-        let error = AIError.mlxNotImplemented
-        XCTAssertNotNil(error.errorDescription)
-        XCTAssertTrue(error.errorDescription!.contains("MLX"))
+        XCTAssertTrue(LLMError.mlxNotAvailable.errorDescription!.contains("MLX"))
+        XCTAssertTrue(LLMError.insecureEndpoint.errorDescription!.contains("https"))
+        XCTAssertTrue(LLMError.missingAPIKey.errorDescription!.contains("Keychain"))
+        XCTAssertNotNil(LLMError.invalidOutput.errorDescription)
     }
 }
 
@@ -104,38 +115,39 @@ final class AIErrorTests: XCTestCase {
 final class AIBackendManagerTests: XCTestCase {
 
     func testSingletonExists() {
-        let manager = AIBackendManager.shared
-        XCTAssertNotNil(manager)
+        XCTAssertNotNil(AIBackendManager.shared)
     }
 
     func testSingletonIsSame() {
-        let a = AIBackendManager.shared
-        let b = AIBackendManager.shared
-        XCTAssertTrue(a === b)
+        XCTAssertTrue(AIBackendManager.shared === AIBackendManager.shared)
     }
 
     func testDefaultOllamaURL() {
-        let manager = AIBackendManager.shared
-        XCTAssertEqual(manager.ollamaServerURL, "http://localhost:11434")
+        XCTAssertEqual(AIBackendManager.shared.ollamaServerURL, "http://localhost:11434")
     }
 
-    func testDefaultActiveBackend() {
-        // After loading configuration, activeBackend should be set
-        let manager = AIBackendManager.shared
-        XCTAssertNotNil(manager.activeBackend)
+    func testDefaultActiveBackend() throws {
+        // A fresh install defaults to AI on + Auto.
+        let suite = "com.jordankoch.Blompie.tests.defaults.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let manager = AIBackendManager(defaults: defaults, keychainService: suite,
+                                       openRouterKeychain: KeychainStore(service: suite + ".openrouter"),
+                                       migrateLegacySecrets: false, probeOnLaunch: false)
+        XCTAssertEqual(manager.activeBackend, .auto)
+        XCTAssertTrue(manager.aiEnabled)
+        // Legacy display-name value persisted by 1.1.x maps to the canonical id.
+        defaults.set("MLX Toolkit", forKey: "AIBackend_Active")
+        manager.loadConfiguration()
+        XCTAssertEqual(manager.activeBackend, .mlx)
     }
 
     func testKeychainServiceName() {
-        // Verify the Keychain service name is correct for Blompie
-        // This is tested indirectly -- the manager must use "com.jordankoch.Blompie"
-        let backendPath = "\(blompieProjectRoot)/AIBackendManager.swift"
-        do {
-            let content = try String(contentsOfFile: backendPath, encoding: .utf8)
-            XCTAssertTrue(content.contains("com.jordankoch.Blompie"),
-                "Keychain service name must be 'com.jordankoch.Blompie'")
-        } catch {
-            XCTFail("Could not read AIBackendManager.swift: \(error)")
-        }
+        // Blompie's own services (not AIStudio's), checked on the live objects.
+        XCTAssertEqual(AIBackendManager.keychainServiceName, "com.jordankoch.Blompie")
+        XCTAssertEqual(OpenRouterProvider.keychainService, "com.jordankoch.Blompie.openrouter")
+        XCTAssertEqual(KeychainStore().service, "com.jordankoch.Blompie.openrouter")
+        XCTAssertNotEqual(OpenRouterProvider.keychainService, OpenRouterProvider.legacyKeychainService)
     }
 }
 

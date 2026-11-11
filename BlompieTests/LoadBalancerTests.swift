@@ -212,6 +212,9 @@ final class LoadBalancerTests: XCTestCase {
         XCTAssertEqual(LLMBackendType.novaGateway.displayName, "Nova Gateway")
         XCTAssertEqual(LLMBackendType.novaGateway.defaultURL, "http://127.0.0.1:18792")
         XCTAssertFalse(LLMBackendType.novaGateway.icon.isEmpty)
-        XCTAssertEqual(LLMBackendType.allCases.count, 8)
+        // 1.2.0 added .openAI to the canonical set (9 cases incl. .auto).
+        XCTAssertEqual(LLMBackendType.allCases.count, 9)
+        XCTAssertEqual(LLMBackendType.openAI.rawValue, "openai")
+        XCTAssertTrue(LLMBackendType.openAI.isCloud)
     }
 }

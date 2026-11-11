@@ -2,368 +2,267 @@ import Foundation
 
 //
 //  AIBackendManager+Generation.swift
-//  Shared AI Backend Manager - Generation Methods
+//  Blompie
 //
-//  Real implementation of generate() that calls Ollama, TinyLLM, OpenWebUI, etc.
+//  The single request path for every text backend. `narrate` is the story
+//  entry point used by `GameEngine`:
+//    1. AI off                 -> throws at once (no network); caller goes scripted
+//    2. balancer toggle(s) on  -> balanced pool (LoadBalancer.firstSuccess)
+//    3. otherwise              -> the selected backend, or for Auto every
+//                                 reachable backend in `LLMBackendType.autoOrder`
+//  Each backend gets bounded retries (`Retry.http`, 408/429/5xx/transport only)
+//  and a timeout. Every reply must pass a validator; a reply that fails counts
+//  as a failed backend. Keys are only ever sent over https.
+//
 //  Author: Jordan Koch
-//  Date: 2026-01-21
 //
 
-extension AIBackendManager {
+extension AIBackendManager: StoryNarrating {
 
-    // MARK: - Text Generation
+    // MARK: - Story entry point
 
-    /// Generate text using the active AI backend
-    /// This is the main method that AISystemAnalyzer and other tools call
-    func generate(
-        prompt: String,
-        systemPrompt: String? = nil,
-        temperature: Double = 0.7,
-        maxTokens: Int = 1000
-    ) async throws -> String {
+    func narrate(
+        messages: [OllamaMessage],
+        model: String,
+        temperature: Double,
+        onChunk: ((String) -> Void)?
+    ) async throws -> NarrationReply {
+        try await narrate(messages: messages, model: model, temperature: temperature,
+                          maxTokens: nil, onChunk: onChunk, validate: NarrationValidator.clean)
+    }
 
-        guard isOllamaAvailable || isTinyLLMAvailable || isTinyChatAvailable || isOpenWebUIAvailable else {
-            throw AIError.noBackendAvailable
+    func narrate(
+        messages: [OllamaMessage],
+        model: String,
+        temperature: Double,
+        maxTokens: Int?,
+        onChunk: ((String) -> Void)?,
+        validate: (String) -> String?
+    ) async throws -> NarrationReply {
+        guard aiEnabled else { throw LLMError.noBackendAvailable }
+
+        // Balanced pool first (non-streaming). nil => balancing off / nothing healthy.
+        if isBalancingEnabled,
+           let reply = try? await generateBalancedNarration(messages: messages, temperature: temperature,
+                                                            maxTokens: maxTokens, validate: validate) {
+            await recordSuccess(reply.backend)
+            return reply
         }
 
-        switch activeBackend {
-        case .ollama:
-            return try await generateWithOllama(
-                prompt: prompt,
-                systemPrompt: systemPrompt,
-                temperature: temperature,
-                maxTokens: maxTokens
-            )
+        let chain = await narrationChain()
+        guard !chain.isEmpty else {
+            await MainActor.run { self.updateStatus() }
+            throw LLMError.noBackendAvailable
+        }
 
-        case .tinyLLM:
-            return try await generateWithTinyLLM(
-                prompt: prompt,
-                systemPrompt: systemPrompt,
-                temperature: temperature,
-                maxTokens: maxTokens
-            )
+        var lastError: Error = LLMError.noBackendAvailable
+        for backend in chain {
+            do {
+                let chosenModel = modelName(for: backend, gameModel: model)
+                var tps: Double?
+                let raw: String
+                if backend == .ollama, let onChunk {
+                    raw = try await streamOllama(messages: messages, model: chosenModel, temperature: temperature,
+                                                 maxTokens: maxTokens, onChunk: onChunk) { tps = $0 }
+                } else {
+                    raw = try await send(backend: backend, model: chosenModel, messages: messages,
+                                         temperature: temperature, maxTokens: maxTokens ?? 1024)
+                }
+                guard let text = validate(raw) else { throw LLMError.invalidOutput }
+                await recordSuccess(backend)
+                return NarrationReply(text: text, backend: backend, model: chosenModel, tokensPerSecond: tps)
+            } catch {
+                lastError = error
+                print("[AI] \(backend.rawValue) failed: \(error.localizedDescription)")
+                await MainActor.run {
+                    // A reply that failed validation came from a reachable server.
+                    if !(error is LLMError && (error as? LLMError) == .invalidOutput) {
+                        self.setAvailable(backend, false)
+                    }
+                    self.updateStatus()
+                }
+            }
+        }
+        throw lastError
+    }
 
-        case .tinyChat:
-            return try await generateWithTinyChat(
-                prompt: prompt,
-                temperature: temperature
-            )
+    /// Backends to try for one turn: the selected one, or (Auto) every reachable
+    /// backend in the fixed order. Auto re-probes when availability is stale.
+    func narrationChain() async -> [LLMBackendType] {
+        if activeBackend != .auto { return [activeBackend] }
+        let stale = lastRefreshDate.map { Date().timeIntervalSince($0) > availabilityMaxAge } ?? true
+        if stale { await refreshAllBackends() }
+        return autoChain()
+    }
 
-        case .openWebUI:
-            return try await generateWithOpenWebUI(
-                prompt: prompt,
-                systemPrompt: systemPrompt,
-                temperature: temperature
-            )
+    private func recordSuccess(_ backend: LLMBackendType) async {
+        await MainActor.run {
+            self.setAvailable(backend, true)
+            self.lastNarrationBackend = backend
+            self.statusBackend = backend
+            self.statusOnline = true
+        }
+    }
 
+    // MARK: - One request to one backend
+
+    /// Send a full conversation to one concrete backend and return the raw reply.
+    func send(
+        backend: LLMBackendType,
+        model: String,
+        messages: [OllamaMessage],
+        temperature: Double,
+        maxTokens: Int,
+        endpoint: String? = nil
+    ) async throws -> String {
+        switch backend {
+        case .auto:
+            throw LLMError.noBackendAvailable
         case .mlx:
-            return try await generateWithMLX(
-                prompt: prompt,
-                systemPrompt: systemPrompt,
-                maxTokens: maxTokens
+            return try runMLX(model: model, messages: messages, maxTokens: maxTokens)
+        case .ollama:
+            let request = try Self.ollamaChatRequest(
+                endpoint: endpoint ?? chatEndpoint(for: .ollama), model: model, messages: messages,
+                temperature: temperature, maxTokens: maxTokens, timeout: localRequestTimeout)
+            let (data, _) = try await Retry.http(request, label: "ollama", transport: transport,
+                                                 policy: retryPolicy, sleep: retrySleep)
+            return try Self.parseOllamaChat(data)
+        case .tinyLLM, .tinyChat, .openWebUI, .novaGateway, .openRouter, .openAI:
+            var headers: [String: String] = [:]
+            if backend.isCloud {
+                guard let key = apiKey(for: backend) else { throw LLMError.missingAPIKey }
+                headers = backend == .openRouter
+                    ? OpenRouterProvider.authHeaders(apiKey: key)
+                    : ["Authorization": "Bearer \(key)"]
+            }
+            var request = try OpenAICompatibleRequest.build(
+                endpoint: endpoint ?? chatEndpoint(for: backend),
+                model: model,
+                messages: Self.openAIMessages(messages),
+                temperature: Float(temperature),
+                maxTokens: maxTokens,
+                stream: false,
+                headers: headers
             )
-
-        case .openAI:
-            throw AIError.mlxNotImplemented // Cloud providers not yet implemented in Blompie
-
-        case .googleCloud:
-            throw AIError.mlxNotImplemented
-
-        case .azureCognitive:
-            throw AIError.mlxNotImplemented
-
-        case .awsAI:
-            throw AIError.mlxNotImplemented
-
-        case .ibmWatson:
-            throw AIError.mlxNotImplemented
+            request.timeoutInterval = backend.isCloud ? cloudRequestTimeout : localRequestTimeout
+            let (data, _) = try await Retry.http(request, label: backend.rawValue, transport: transport,
+                                                 policy: retryPolicy, sleep: retrySleep)
+            return try Self.parseOpenAIChat(data)
         }
     }
 
-    // MARK: - Ollama Implementation
+    // MARK: - Pure request/response helpers (unit-tested)
 
-    private func generateWithOllama(
-        prompt: String,
-        systemPrompt: String?,
-        temperature: Double,
-        maxTokens: Int
-    ) async throws -> String {
-
-        guard let url = URL(string: "\(ollamaServerURL)/api/generate") else {
-            throw AIError.invalidURL
+    /// Map the game's conversation to the OpenAI `messages` shape. Multiple system
+    /// messages (prompt + history summary) are folded into one leading system message.
+    static func openAIMessages(_ messages: [OllamaMessage]) -> [[String: String]] {
+        let system = messages.filter { $0.role == "system" }.map(\.content).joined(separator: "\n\n")
+        var out: [[String: String]] = system.isEmpty ? [] : [["role": "system", "content": system]]
+        for m in messages where m.role != "system" {
+            out.append(["role": m.role == "assistant" ? "assistant" : "user", "content": m.content])
         }
+        return out
+    }
 
-        var messages: [[String: String]] = []
-
-        if let system = systemPrompt {
-            messages.append(["role": "system", "content": system])
-        }
-
-        messages.append(["role": "user", "content": prompt])
-
-        let requestBody: [String: Any] = [
-            "model": selectedOllamaModel,
-            "prompt": prompt,
-            "system": systemPrompt ?? "",
+    static func ollamaChatRequest(
+        endpoint: String, model: String, messages: [OllamaMessage],
+        temperature: Double, maxTokens: Int, timeout: TimeInterval
+    ) throws -> URLRequest {
+        guard let url = URL(string: endpoint), url.host != nil else { throw LLMError.invalidURL }
+        var request = URLRequest(url: url, timeoutInterval: timeout)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = [
+            "model": model,
+            "messages": openAIMessages(messages),
             "stream": false,
-            "options": [
-                "temperature": temperature,
-                "num_predict": maxTokens
-            ]
+            "options": ["temperature": temperature, "num_predict": maxTokens]
         ]
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-        request.timeoutInterval = 60.0
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw AIError.invalidResponse
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            throw AIError.httpError(httpResponse.statusCode)
-        }
-
-        struct OllamaResponse: Codable {
-            let response: String
-        }
-
-        let ollamaResponse = try JSONDecoder().decode(OllamaResponse.self, from: data)
-        return ollamaResponse.response
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return request
     }
 
-    // MARK: - TinyLLM Implementation
+    /// Ollama `/api/chat` reply -> text.
+    static func parseOllamaChat(_ data: Data) throws -> String {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let message = json["message"] as? [String: Any],
+              let content = message["content"] as? String else {
+            throw LLMError.invalidResponse
+        }
+        return content
+    }
 
-    private func generateWithTinyLLM(
-        prompt: String,
-        systemPrompt: String?,
+    /// OpenAI-compatible `/chat/completions` reply -> text.
+    static func parseOpenAIChat(_ data: Data) throws -> String {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let choices = json["choices"] as? [[String: Any]],
+              let first = choices.first,
+              let message = first["message"] as? [String: Any],
+              let content = message["content"] as? String else {
+            throw LLMError.invalidResponse
+        }
+        return content
+    }
+
+    // MARK: - Ollama streaming (story path with streaming on)
+
+    private func streamOllama(
+        messages: [OllamaMessage],
+        model: String,
         temperature: Double,
-        maxTokens: Int
+        maxTokens: Int?,
+        onChunk: @escaping (String) -> Void,
+        onRate: @escaping (Double?) -> Void
     ) async throws -> String {
-
-        guard let url = URL(string: "\(tinyLLMServerURL)/v1/chat/completions") else {
-            throw AIError.invalidURL
+        let service = OllamaService(baseURL: baseURL(for: .ollama))
+        service.model = model
+        service.temperature = temperature
+        service.maxTokens = maxTokens
+        var full = ""
+        try await service.chatStreaming(messages: messages) { chunk in
+            full += chunk
+            onChunk(chunk)
+        } onComplete: { rate in
+            onRate(rate)
         }
-
-        var messages: [[String: String]] = []
-
-        if let system = systemPrompt {
-            messages.append(["role": "system", "content": system])
-        }
-
-        messages.append(["role": "user", "content": prompt])
-
-        let requestBody: [String: Any] = [
-            "model": "default",
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": maxTokens,
-            "stream": false
-        ]
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-        request.timeoutInterval = 60.0
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw AIError.invalidResponse
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            throw AIError.httpError(httpResponse.statusCode)
-        }
-
-        struct OpenAIResponse: Codable {
-            struct Choice: Codable {
-                struct Message: Codable {
-                    let content: String
-                }
-                let message: Message
-            }
-            let choices: [Choice]
-        }
-
-        let apiResponse = try JSONDecoder().decode(OpenAIResponse.self, from: data)
-        return apiResponse.choices.first?.message.content ?? ""
+        return full
     }
 
-    // MARK: - TinyChat Implementation
+    // MARK: - MLX (local CLI)
 
-    private func generateWithTinyChat(
-        prompt: String,
-        temperature: Double
-    ) async throws -> String {
-
-        guard let url = URL(string: "\(tinyChatServerURL)/api/chat") else {
-            throw AIError.invalidURL
-        }
-
-        let requestBody: [String: Any] = [
-            "message": prompt,
-            "model": selectedOllamaModel,
-            "temperature": temperature
-        ]
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-        request.timeoutInterval = 60.0
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw AIError.invalidResponse
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            throw AIError.httpError(httpResponse.statusCode)
-        }
-
-        // TinyChat returns streaming JSON lines, take the last complete response
-        if let responseText = String(data: data, encoding: .utf8) {
-            // Parse last line of streaming response
-            let lines = responseText.components(separatedBy: "\n").filter { !$0.isEmpty }
-            for line in lines.reversed() {
-                if let lineData = line.data(using: .utf8),
-                   let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
-                   let content = json["content"] as? String {
-                    return content
-                }
-            }
-        }
-
-        throw AIError.noResponse
-    }
-
-    // MARK: - OpenWebUI Implementation
-
-    private func generateWithOpenWebUI(
-        prompt: String,
-        systemPrompt: String?,
-        temperature: Double
-    ) async throws -> String {
-
-        // OpenWebUI uses OpenAI-compatible API
-        guard let url = URL(string: "\(openWebUIServerURL)/api/chat") else {
-            throw AIError.invalidURL
-        }
-
-        var messages: [[String: String]] = []
-
-        if let system = systemPrompt {
-            messages.append(["role": "system", "content": system])
-        }
-
-        messages.append(["role": "user", "content": prompt])
-
-        let requestBody: [String: Any] = [
-            "model": selectedOllamaModel,
-            "messages": messages,
-            "temperature": temperature
-        ]
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-        request.timeoutInterval = 60.0
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw AIError.invalidResponse
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            throw AIError.httpError(httpResponse.statusCode)
-        }
-
-        // Parse response (format varies by OpenWebUI version)
-        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let message = json["message"] as? [String: Any],
-           let content = message["content"] as? String {
-            return content
-        }
-
-        throw AIError.noResponse
-    }
-
-    // MARK: - MLX Implementation
-
-    private func generateWithMLX(
-        prompt: String,
-        systemPrompt: String?,
-        maxTokens: Int
-    ) async throws -> String {
-
-        let mlxPath = "/opt/homebrew/bin/mlx_lm.generate"
-        guard FileManager.default.fileExists(atPath: mlxPath) else {
-            print("[AIBackend] MLX not installed")
-            throw AIError.mlxNotImplemented
-        }
-
-        var fullPrompt = prompt
-        if let system = systemPrompt {
-            fullPrompt = "\(system)\n\n\(prompt)"
-        }
+    private func runMLX(model: String, messages: [OllamaMessage], maxTokens: Int) throws -> String {
+        guard FileManager.default.isExecutableFile(atPath: Self.mlxExecutable) else { throw LLMError.mlxNotAvailable }
+        let prompt = Self.openAIMessages(messages).map { "\($0["role"] ?? ""): \($0["content"] ?? "")" }
+            .joined(separator: "\n\n") + "\n\nassistant:"
 
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: mlxPath)
-        process.arguments = ["--model", "mlx-community/Llama-3.2-3B-Instruct-4bit", "--prompt", fullPrompt, "--max-tokens", "\(maxTokens)"]
-
+        process.executableURL = URL(fileURLWithPath: Self.mlxExecutable)
+        process.arguments = ["--model", model, "--prompt", prompt, "--max-tokens", "\(maxTokens)"]
         let outputPipe = Pipe()
         process.standardOutput = outputPipe
         process.standardError = Pipe()
-
         try process.run()
-        process.waitUntilExit()
-
-        guard process.terminationStatus == 0 else {
-            throw AIError.mlxNotImplemented
-        }
-
         let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { throw LLMError.mlxNotAvailable }
         guard let output = String(data: outputData, encoding: .utf8), !output.isEmpty else {
-            throw AIError.noResponse
+            throw LLMError.noResponse
         }
-
         return output.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
-// MARK: - AI Errors
-
-enum AIError: LocalizedError {
-    case noBackendAvailable
-    case invalidURL
-    case invalidResponse
-    case httpError(Int)
-    case noResponse
-    case mlxNotImplemented
-
-    var errorDescription: String? {
-        switch self {
-        case .noBackendAvailable:
-            return "No AI backend is available. Please start Ollama, TinyLLM, TinyChat, or OpenWebUI."
-        case .invalidURL:
-            return "Invalid backend URL configuration"
-        case .invalidResponse:
-            return "Received invalid response from AI backend"
-        case .httpError(let code):
-            return "HTTP error \(code) from AI backend"
-        case .noResponse:
-            return "No response received from AI backend"
-        case .mlxNotImplemented:
-            return "MLX backend not yet implemented. Please use Ollama instead."
+extension LLMError: Equatable {
+    static func == (lhs: LLMError, rhs: LLMError) -> Bool {
+        switch (lhs, rhs) {
+        case (.httpError(let a), .httpError(let b)): return a == b
+        case (.noBackendAvailable, .noBackendAvailable), (.invalidURL, .invalidURL),
+             (.invalidResponse, .invalidResponse), (.noResponse, .noResponse),
+             (.mlxNotAvailable, .mlxNotAvailable), (.insecureEndpoint, .insecureEndpoint),
+             (.missingAPIKey, .missingAPIKey), (.invalidOutput, .invalidOutput):
+            return true
+        default:
+            return false
         }
     }
 }

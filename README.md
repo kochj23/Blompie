@@ -4,12 +4,14 @@
 ![Platform](https://img.shields.io/badge/platform-macOS%2014.0%2B-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Swift](https://img.shields.io/badge/Swift-SwiftUI-orange)
-![Version](https://img.shields.io/badge/version-1.1.2%20(build%205)-informational)
-![Tests](https://img.shields.io/badge/tests-310%20passing-brightgreen)
+![Version](https://img.shields.io/badge/version-1.2.0%20(build%206)-informational)
+![Tests](https://img.shields.io/badge/tests-360%20passing-brightgreen)
 
 **An AI-powered text adventure for macOS. Every playthrough is generated on the fly.**
 
-Blompie is a native SwiftUI text adventure in the spirit of Zork. A local language model acts as the game master: it invents the world, the characters, the items and the consequences of whatever you type. By default everything runs on your own Mac through Ollama. You can optionally spread story generation across every local model you have (Ollama + MLX), frontier models through OpenRouter, and the Nova Gateway, with automatic failover between them.
+Blompie is a native SwiftUI text adventure in the spirit of Zork. A language model acts as the game master: it invents the world, the characters, the items and the consequences of whatever you type. By default it runs on your own Mac (Auto mode picks the first reachable of Ollama, MLX, TinyChat, TinyLLM, OpenWebUI, Nova Gateway, OpenRouter, OpenAI). You can optionally spread story generation across every local model you have (Ollama + MLX), frontier models through OpenRouter, and the Nova Gateway, with automatic failover between them.
+
+The AI is optional. Switch it off, or let every backend go down, and a built-in scripted narrator keeps the game fully playable: a failed AI call never loses a turn. See [AI Options](#ai-options).
 
 Blompie also exposes a token-protected loopback HTTP API so AI agents (Nova, Claude Code, scripts) can play adventures programmatically, and ships a WidgetKit widget that shows your current game at a glance.
 
@@ -22,6 +24,7 @@ Written by Jordan Koch ([@kochj23](https://github.com/kochj23)).
 ## Table of Contents
 
 - [Features](#features)
+- [AI Options](#ai-options)
 - [Architecture](#architecture)
 - [Data Flow](#data-flow)
 - [Multi-Model Load Balancer](#multi-model-load-balancer)
@@ -48,7 +51,7 @@ Written by Jordan Koch ([@kochj23](https://github.com/kochj23)).
 | Story progression rules | The prompt requires every action to move the story forward (no re-describing the same scene). |
 | Free-form input | Type any action in natural language, or click one of the 2-4 suggested actions. |
 | Suggested actions | Parsed from the model reply in three accepted formats: `ACTIONS: a \| b \| c`, a numbered list (including `1. **Bold action**`), or a "What do you do?" style header followed by a list. If nothing parses, defaults are offered (Look around, Continue, Go back, Examine surroundings). |
-| Prompt-leak filtering | Lines that echo the system prompt are stripped from the narrative before display. |
+| Prompt-leak filtering and output validation | Every model reply passes `NarrationValidator` before it touches game state: `<think>` blocks, chat-template tokens and control/bidi characters are stripped, replies with almost no letters or that echo the system prompt are rejected (the next backend or the scripted narrator answers instead), and narration is clipped at 6,000 characters. Suggested actions are trimmed, de-duplicated, capped at 80 characters and at most 6. Remaining prompt-echo lines are filtered from the narrative. |
 | World tracking | NPC names, inventory items and visited locations are extracted heuristically from each reply and shown in the sidebar (Locations / Inventory / Characters tabs). |
 | Achievements | 10 achievements persisted across sessions: First Steps, Explorer (5 locations), World Traveler (20), Social Butterfly (5 NPCs), Diplomat (15), Collector (5 items), Hoarder (15), Conversationalist (50 actions), Veteran Adventurer (200 actions), Trader (defined, not yet awarded by the engine). |
 | Undo | Every action snapshots messages, conversation history and suggested actions. Up to 20 snapshots are retained (oldest dropped first). |
@@ -76,7 +79,7 @@ Since 1.1.2 Blompie records what you played in the shared play-history schema `p
 |---|---|
 | New adventure, or loading any save (including the autosave at launch) | A new `play.sessions` row (`game` `blompie-mac`, `client` `mac`, `player` `default`) and a `start` event (`setting` or `slot`/`resumed`, model, tone, detail). The previously open session ends with outcome `completed`. |
 | Opening narration | A `scene` event with a narrator excerpt (max 400 chars). |
-| Every turn | A `turn` event: turn number, your action (max 200 chars), narrator excerpt (max 400 chars), achievements unlocked that turn, `failed: true` if the model call failed. The session's `last_seen_at`, `actions` and running `summary` are updated. |
+| Every turn | A `turn` event: turn number, your action (max 200 chars), narrator excerpt (max 400 chars), achievements unlocked that turn, and `source` (`llm`, `fallback` when the AI was unreachable and the scripted narrator answered, or `scripted` when AI is off). Since 1.2.0 a turn never fails: a fallback turn is recorded as a normal turn. The session's `last_seen_at`, `actions` and running `summary` (now with a `fallbacks` count) are updated. The `start` event also records `ai_enabled`. |
 | App quit | The session ends with outcome `quit` (best effort, up to 2 s). |
 
 The session `summary` holds: turns, started_from, slot, model, tone, detail, achievements unlocked this session and total, places / items / NPCs (last 40 each, plus counts), the last scene and the last 30 turns as `moments`. Blompie has no win condition, so there is no `game_over` event and no score.
@@ -88,7 +91,8 @@ Connection: `192.168.1.5:5433`, database `games`, LAN role `blompie_mac` (insert
 ### Interface (ContentView, Design/ModernDesign)
 
 - Glassmorphic UI: animated gradient background with floating blobs, glass cards, monospaced type.
-- Live streaming display: tokens appear as Ollama generates them (or instant mode when streaming is off).
+- Narrator status badge in the toolbar: "Narrator online: Ollama" / "Narrator away" / "AI off: scripted narrator", plus who narrated the last turn (AI via backend, or scripted).
+- Live streaming display: tokens appear as Ollama generates them (or instant mode when streaming is off; other backends reply in one piece).
 - Tokens-per-second readout from Ollama's `eval_count` / `eval_duration`.
 - Number keys `1`-`n` trigger the matching suggested action.
 - Font size 8-36 pt via slider or `Ctrl+Shift+=` / `Ctrl+Shift+-`.
@@ -99,7 +103,7 @@ Connection: `192.168.1.5:5433`, database `games`, LAN role `blompie_mac` (insert
 
 - Generate a Scene Illustration, Character Portrait or Item/Object image from the latest narrative, or use a custom prompt.
 - Six styles that append style keywords to the prompt: Realistic, Artistic, Fantasy, Pixel Art, Cartoon, Anime.
-- Backend priority: SwarmUI (`:7801`, Flux schnell) then Automatic1111 (`:7860`). ComfyUI (`:8188`) is detected but generation through it is not implemented yet and returns a clear error.
+- Backend priority: SwarmUI (`:7801`, Flux schnell) then Automatic1111 (`:7860`). (ComfyUI was removed in 1.2.0; it was detected but never implemented.)
 - Save the result to the Desktop as PNG or copy it to the clipboard; recent images are kept for the session.
 
 ### macOS Widget (Blompie Widget target)
@@ -115,15 +119,55 @@ Connection: `192.168.1.5:5433`, database `games`, LAN role `blompie_mac` (insert
 
 ### AI Backends
 
-| Backend | Role | Default endpoint |
-|---|---|---|
-| Ollama | Default story engine (streaming and non-streaming `/api/chat`) | `http://localhost:11434` |
-| MLX | Local Apple Silicon models from the Hugging Face cache, run via `mlx_lm.generate` (balancer only) | in-process CLI |
-| OpenRouter | Frontier models, one Keychain-stored key (balancer only) | `https://openrouter.ai/api/v1` |
-| Nova Gateway | Optional OpenAI-compatible gateway, inherits Nova's own routing (balancer only) | `http://127.0.0.1:18792` |
-| SwarmUI / Automatic1111 / ComfyUI | Image generation (see above) | `:7801` / `:7860` / `:8188` |
+See [AI Options](#ai-options) below.
 
-`AIBackendManager` also probes TinyLLM, TinyChat and OpenWebUI for availability; those are not used by the story path.
+---
+
+## AI Options
+
+Everything here is in **Settings > AI Narrator** (plus **Multi-Model Load Balancing** for the pool toggles and the OpenRouter key).
+
+| Option | What it does |
+|---|---|
+| Use AI narrator (global toggle) | On (default): a model narrates. Off: the built-in scripted narrator runs the game and nothing is sent over the network (no generation, no probes). |
+| Backend picker | `auto`, `ollama`, `mlx`, `tinyllm`, `tinychat`, `openwebui`, `novagateway`, `openrouter`, `openai` (the shared `LLMBackendType` ids; the lowercase id is what is persisted). Claude is reached through `novagateway` or OpenRouter (`anthropic/claude-*`). |
+| Auto | Tries every reachable backend in a fixed order: Ollama, MLX, TinyChat, TinyLLM, OpenWebUI, Nova Gateway, OpenRouter, OpenAI. Availability is re-probed when older than 30 s; a backend that fails is marked unreachable and the next one is tried. |
+| Model picker | Ollama / TinyChat / OpenWebUI use the model list from Ollama `/api/tags`; OpenRouter has its own model list; OpenAI, MLX and TinyLLM take a model name; Nova Gateway is always `nova`. |
+| Endpoints | Every URL is editable (Ollama, TinyLLM, TinyChat, OpenWebUI, Nova Gateway, OpenRouter, OpenAI). Defaults point at this Mac; any LAN host works. Invalid URLs are flagged and not saved. |
+| API keys | OpenAI and OpenRouter keys are entered in `SecureField`s and stored only in the Keychain: OpenAI under service `com.jordankoch.Blompie` (account `AIBackend_OpenAI_Key`), OpenRouter under Blompie's own service `com.jordankoch.Blompie.openrouter`. Keys are never written to `UserDefaults` or the environment. |
+| https only | A request that carries an API key is refused unless the URL is `https://` (`LLMError.insecureEndpoint`), so a key can never go out over plain http. Cloud backends count as available only with a key and an https URL. |
+| Status + Test connection | The toolbar badge shows the active backend and whether it is reachable; Settings lists every backend's status and has a **Test connection** button (live probe of the selected backend, or of the whole Auto chain). |
+| Timeouts and retries | Local requests time out after 180 s (first load of a big model), cloud requests after 60 s, probes after 3 s. Each backend gets at most 2 attempts (retry only on 408/429/5xx/transport errors, 0.5 s backoff, via `Retry.http`, copied from GTNW) before failing over. |
+| Scripted fallback | If no backend produces a valid reply, the turn still completes. At the start of a game the scripted narrator opens a small rule-based world (seven places, items, three characters) and keeps running it; mid-story it shows a short "narrator away" line and keeps your current actions so you can try again. Scripted text is shown but never fed back to the model. The transcript marks fallback turns. |
+| Output validation | See "Prompt-leak filtering and output validation" above. A rejected reply counts as a failed backend. |
+
+```mermaid
+flowchart TD
+    A[Player action] --> B{AI narrator on?}
+    B -- no --> S[ScriptedNarrator<br/>rule-based world]
+    B -- yes --> C{Balancer toggle on?}
+    C -- yes --> D[LoadBalancer.firstSuccess<br/>over healthy pool]
+    D -- valid reply --> V
+    D -- nil / all failed --> E
+    C -- no --> E{Backend}
+    E -- explicit --> F[selected backend]
+    E -- auto --> G[reachable backends in fixed order<br/>Ollama, MLX, TinyChat, TinyLLM,<br/>OpenWebUI, Nova, OpenRouter, OpenAI]
+    F --> H[send: timeout + up to 2 attempts<br/>keys only over https]
+    G --> H
+    H -- reply --> I{NarrationValidator}
+    I -- valid --> V[Show narration, parse actions<br/>source = AI via backend]
+    I -- rejected --> J{next backend?}
+    H -- error --> J
+    J -- yes --> H
+    J -- no --> K[ScriptedNarrator fallback<br/>source = fallback]
+    S --> L[Turn completes:<br/>play history source, autosave, widget]
+    K --> L
+    V --> L
+```
+
+Removed in 1.2.0: the Google Cloud, Microsoft Azure, AWS and IBM Watson backends (they always threw and never worked; OpenRouter covers frontier models with one key), the never-compiled `EthicalAIGuardian` / `AIBackendManager+Enhanced` / `+EthicalGuardian` / `AIBackendStatusMenu`, the unused `AIBackendSelectionView` and the unused `Blompie/AICapabilities/*` module (which read `OPENAI_API_KEY` from the environment).
+
+Upgrading from 1.1.x: the backend saved as a display name (for example `MLX Toolkit`) is mapped to its id; a removed cloud backend becomes Auto. The OpenRouter key Blompie used to share with AIStudio (`com.jkoch.aistudio.openrouter`) is read once, copied to `com.jordankoch.Blompie.openrouter`, and the AIStudio item is left untouched. Any old cloud keys still in `UserDefaults` are moved (OpenAI) or deleted (the removed backends).
 
 ---
 
@@ -139,10 +183,12 @@ graph TD
         CV --> IGV[ImageGenerationView]
         IGV --> IGS[ImageGenerationService]
         CV --> MD[ModernDesign<br/>ModernColors, GlassmorphicBackground]
-        GE --> OS[OllamaService]
+        CV --> AIS[AISettingsView<br/>status badge, AI Narrator settings]
         GE --> ABM[AIBackendManager<br/>+Balancer, +Generation]
-        GES --> OS
+        GE --> SN[ScriptedNarrator<br/>NarrationValidator]
         GES --> ABM
+        ABM --> OS[OllamaService<br/>streaming]
+        ABM --> RT[Retry.http]
         ABM --> MR[ModelRegistry]
         ABM --> LB[LoadBalancer]
         ABM --> ORP[OpenRouterProvider<br/>OpenAICompatibleRequest]
@@ -160,7 +206,9 @@ graph TD
     subgraph External["Local and remote services"]
         OL[Ollama :11434]
         MLX[mlx_lm.generate + HF cache]
-        OR[OpenRouter API]
+        TL[TinyLLM / TinyChat / OpenWebUI]
+        OR[OpenRouter API, https]
+        OA[OpenAI API, https]
         NG[Nova Gateway :18792]
         IMG[SwarmUI :7801 / A1111 :7860]
         KC[(macOS login Keychain)]
@@ -168,10 +216,12 @@ graph TD
     end
 
     OS --> OL
-    ABM --> OL
+    RT --> OL
     ABM --> MLX
-    ABM --> OR
-    ABM --> NG
+    RT --> TL
+    RT --> OR
+    RT --> OA
+    RT --> NG
     IGS --> IMG
     KS --> KC
     TOK --> KC
@@ -179,7 +229,7 @@ graph TD
     WSDM --> AG
 
     subgraph Tests["BlompieTests (target: unit tests)"]
-        T[310 XCTest cases]
+        T[360 XCTest cases]
     end
     T -.-> App
 ```
@@ -189,7 +239,9 @@ graph TD
 | Path | Purpose |
 |---|---|
 | `Blompie/BlompieApp.swift` | App entry point; starts the Nova API server; font-size menu commands |
-| `Blompie/GameEngine.swift` | Game state, system prompt, response parsing, world tracking, achievements, undo, save/load, export, settings |
+| `Blompie/GameEngine.swift` | Game state, system prompt, response parsing, world tracking, achievements, undo, save/load, export, settings; asks the narrator, falls back to the scripted narrator |
+| `Blompie/Narration.swift` | `NarrationSource` (llm / fallback / scripted), `NarrationValidator` (output checks), `ScriptedNarrator` (rule-based world) |
+| `Blompie/AISettingsView.swift` | Toolbar narrator status badge; Settings > AI Narrator (toggle, backend/model pickers, endpoints, keys, status, Test connection) |
 | `Blompie/ContentView.swift` | Main window, sidebar, save/load/settings/stats/achievements sheets |
 | `Blompie/OllamaService.swift` | Ollama `/api/tags` and `/api/chat` (streaming + non-streaming), tokens/sec |
 | `Blompie/NovaAPIServer.swift` | Loopback HTTP API, Keychain token, request gate |
@@ -203,11 +255,12 @@ graph TD
 | `Blompie/Services/ModelRegistry.swift` | Model discovery, pool assembly, `LoadBalancer` |
 | `Blompie/Services/OpenRouterProvider.swift` | OpenRouter constants, OpenAI-compatible request builder, `FailoverPlanner` |
 | `Blompie/Services/KeychainStore.swift` | Generic-password Keychain wrapper |
-| `Blompie/Services/LLMBackendType.swift`, `LLMLoadBalancerSupport.swift` | Balancer backend taxonomy, `ChatMessage`, `LLMError` |
-| `Blompie/AICapabilities/*` | Shared cross-project capability module (compiled in, no UI entry point in Blompie) |
-| `AIBackendManager.swift` | Backend detection, URLs, configuration persistence, balancer toggles |
-| `AIBackendManager+Balancer.swift` | Pool discovery, health gating, balanced dispatch per backend |
-| `AIBackendManager+Generation.swift` | Single-backend `generate()` for Ollama / TinyLLM / TinyChat / OpenWebUI / MLX |
+| `Blompie/Services/LLMBackendType.swift` | Canonical backend ids shared by every game, Auto order, legacy-value migration |
+| `Blompie/Services/LLMLoadBalancerSupport.swift` | `ChatMessage`, `LLMError` |
+| `Blompie/Services/Retry.swift` | `RetryPolicy`, `Retry.http`, injectable `HTTPTransport` (copied from GTNW) |
+| `AIBackendManager.swift` | AI toggle, backend selection, endpoints, models, Keychain keys and migration, availability probes, status, persistence |
+| `AIBackendManager+Balancer.swift` | OpenRouter key and model list, pool discovery, health gating, balanced dispatch |
+| `AIBackendManager+Generation.swift` | `narrate` (balancer, then selected backend or Auto chain, validation), `send` for every backend, request/response helpers |
 | `Blompie Widget/*` | Widget provider, views, data model, App Group reader |
 
 ---
@@ -223,36 +276,35 @@ sequenceDiagram
     participant CV as ContentView
     participant GE as GameEngine
     participant ABM as AIBackendManager
-    participant LB as LoadBalancer
-    participant BE as Pool model<br/>(Ollama / MLX / OpenRouter / Nova)
-    participant OS as OllamaService
+    participant BE as Backend(s)
+    participant SN as ScriptedNarrator
     participant SDM as SharedDataManager
     participant W as Widget
 
     P->>CV: Type action or press 1..n
     CV->>GE: performAction(action)
     GE->>GE: Snapshot for undo (max 20), record action,<br/>random-model switch if due
-    GE->>ABM: generateBalancedNarration(history)
-    alt Balancing enabled and pool non-empty
-        ABM->>ABM: discoverEnabledPool() + healthMap()
-        ABM->>LB: firstSuccess(pool, health, policy)
-        loop each healthy model, at most once
-            LB->>BE: dispatchBalanced(model)
-            BE-->>LB: reply or error (failed model dropped)
+    alt AI narrator on
+        GE->>ABM: narrate(history, model, temperature)
+        ABM->>BE: balanced pool, then selected backend / Auto chain<br/>(timeout, bounded retries, https-only keys)
+        BE-->>ABM: reply or error
+        ABM->>ABM: NarrationValidator (reject = next backend)
+        alt valid reply
+            ABM-->>GE: NarrationReply(text, backend)
+            GE->>GE: Append to history, trim to 50 + summary
+        else every backend failed
+            ABM-->>GE: error
+            GE->>SN: respond / away line (source = fallback)
         end
-        LB-->>GE: first successful reply
-    else Balancing off, empty pool, or every model failed
-        ABM-->>GE: nil / error
-        GE->>OS: chatStreaming() or chat()
-        OS-->>GE: reply (+ tokens/sec)
+    else AI narrator off
+        GE->>SN: respond(action) (source = scripted)
     end
-    GE->>GE: Append to history, trim to 50 + summary
-    GE->>GE: parseOllamaResponse()<br/>narrative, actions, prompt-leak filter
-    GE->>GE: Track NPCs / items / locations, checkAchievements()
+    GE->>GE: parseOllamaResponse()<br/>narrative, sanitized actions, prompt-leak filter
+    GE->>GE: Track NPCs / items / locations, checkAchievements(),<br/>play-history turn with source
     GE->>GE: Autosave (if enabled)
     GE->>SDM: updateFromGameEngine()
     SDM->>W: App Group write + reloadTimelines
-    GE-->>CV: @Published updates
+    GE-->>CV: @Published updates (narration, status badge)
     CV-->>P: Narrative, suggested actions, stats
 ```
 
@@ -285,23 +337,25 @@ flowchart TD
 
 ## Multi-Model Load Balancer
 
-Settings > **Multi-Model Load Balancing** has three independent toggles. With all three off (the default), Blompie uses Ollama only, exactly as before.
+Settings > **Multi-Model Load Balancing** has three independent toggles. With all three off (the default), Blompie uses the backend chosen in Settings > AI Narrator (Auto by default).
 
 | Toggle | Adds to the pool |
 |---|---|
 | Balance across all local models (Ollama + MLX) | Every model from Ollama `/api/tags`, plus every `*mlx*` repo in `~/.cache/huggingface/hub` |
-| Enable all frontier models (OpenRouter) | Every model id from OpenRouter `/models` (falls back to a built-in popular list if the fetch fails). Requires an OpenRouter API key, entered in Settings and stored in the Keychain. |
+| Enable all frontier models (OpenRouter) | Every model id from OpenRouter `/models` (falls back to a built-in popular list if the fetch fails). Requires an OpenRouter API key, entered in Settings and stored in the Keychain (service `com.jordankoch.Blompie.openrouter`). Requests carry `HTTP-Referer: https://github.com/kochj23/Blompie` and `X-Title: Blompie`. |
 | Use Nova Gateway (optional) | One entry, `nova`, at `http://127.0.0.1:18792/v1/chat/completions` |
 
 How a request is dispatched:
 
 1. **Pool assembly** (`ModelRegistry.assemblePool`): concatenates the enabled sources and de-duplicates by `backend|model` id, preserving order. Unreachable sources contribute zero models; discovery never throws.
-2. **Health gating**: each distinct backend is probed once (Ollama `/api/tags`, MLX binary present, OpenRouter `/models` with the key, Nova `/v1/models`). Models on unhealthy backends are skipped. Nova is never required; a failed health check simply drops it.
+2. **Health gating**: each distinct backend is probed once with a 3 s timeout (Ollama `/api/tags`, MLX binary present, OpenRouter `/models` with the key over https, Nova `/v1/models`). Models on unhealthy backends are skipped. Nova is never required; a failed health check simply drops it.
 3. **Selection policy** (`BalancerPolicy`): `roundRobin` cycles through healthy models; `leastBusy` (the default) picks the model with the fewest in-flight requests, ties broken by pool order.
-4. **Failover** (`LoadBalancer.firstSuccess`): tries each healthy model at most once in policy order. A model whose request throws is dropped and the next is tried. Every attempt is checked out and back in, so in-flight counts stay accurate on failure. It returns the first success, returns `nil` when no model is healthy, and rethrows the last error only when every healthy model failed.
-5. **Fallback**: if balancing is off, the pool is empty, nothing is healthy, or every model failed, `GameEngine` falls back to the plain Ollama path (streaming or non-streaming according to Settings).
+4. **Failover** (`LoadBalancer.firstSuccess`): tries each healthy model in policy order (each request itself gets the bounded `Retry.http` attempts). A model whose request throws, or whose reply fails `NarrationValidator`, is dropped and the next is tried. Every attempt is checked out and back in, so in-flight counts stay accurate on failure. It returns the first success, returns `nil` when no model is healthy, and rethrows the last error only when every healthy model failed.
+5. **Fallback**: if balancing is off, the pool is empty, nothing is healthy, or every model failed, `narrate` continues with the AI Narrator backend (or the Auto chain); if that fails too, the scripted narrator answers.
 
-The balanced path is non-streaming (the reply appears when complete); the Ollama fallback streams.
+The balanced path is non-streaming (the reply appears when complete); Ollama streams when it is reached through the AI Narrator backend and streaming is on.
+
+`Blompie/Services/*` (`LLMBackendType`, `ModelRegistry` + `LoadBalancer`, `OpenRouterProvider` + `FailoverPlanner` + `EndpointPolicy`, `KeychainStore`, `LLMLoadBalancerSupport`, `Retry`) is the canonical copy of the balancer for every other game. Covered by `LoadBalancerTests` (20), `RetryTests` (9), `AIParityRetryTests` (8) and `PerformanceTests`.
 
 ---
 
@@ -375,10 +429,12 @@ Unknown routes return 404; unknown session ids return 404 `Session not found`. S
 
 ## Security
 
-- **Secrets live only in the macOS Keychain.** The Nova API token (`net.digitalnoise.blompie.api` / `api-token`), the OpenRouter key (`KeychainStore`), and any cloud keys handled by `AIBackendManager` (service `com.jordankoch.Blompie`, migrated out of `UserDefaults` on first run) are never written to `UserDefaults`, files or the repository.
+- **Secrets live only in the macOS Keychain.** The Nova API token (`net.digitalnoise.blompie.api` / `api-token`), the OpenRouter key (`com.jordankoch.Blompie.openrouter`, Blompie's own item; the old AIStudio-shared item is read once and left untouched) and the OpenAI key (`com.jordankoch.Blompie` / `AIBackend_OpenAI_Key`) are never written to `UserDefaults`, the environment, files or the repository. Clearing a key field deletes the item instead of storing an empty one.
+- **API keys only over https.** Any request carrying a key to a non-https URL is refused before it is sent. Local backends never receive a key.
+- **AI output is validated** before it reaches game state (see [AI Options](#ai-options)).
 - **No secrets in the repo.** Nothing is hardcoded; the `SourceCodeSecurityTests` suite scans the sources for hardcoded keys and passwords.
 - **Local API hardened** as described above: loopback bind, bearer token on every route, browser and preflight refusal, Host allow-list against DNS rebinding, constant-time token compare, request and command size limits, no CORS.
-- **Local by default.** With the balancer toggles off, all inference stays on your Mac (Ollama on localhost). OpenRouter is used only when you enable it and supply a key; Nova Gateway only when you enable it.
+- **Local by default.** Endpoints default to this Mac. Cloud backends (OpenRouter, OpenAI) are used only when you select them or Auto reaches them, and only with a key you supplied. With the AI narrator switched off, Blompie makes no AI network calls at all.
 - **No telemetry.** Blompie has no analytics or phone-home code. Play history goes only to Jordan's own LAN Games DB (see [Play History](#play-history-nova-games-db)) as the restricted role `blompie_mac`, over verified TLS, with the password in the Data Protection keychain.
 - **Entitlements.** Network client access, the `group.com.jkoch.blompie` App Group, and a `keychain-access-groups` entry for the Games DB credential. The app is not sandboxed (it needs to launch `mlx_lm.generate` and read the Hugging Face cache).
 
@@ -392,8 +448,8 @@ See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 |---|---|
 | macOS | 14.0 (Sonoma) or later |
 | Xcode | 15 or later (to build from source) |
-| Ollama | Any recent release, running on `localhost:11434`, with at least one model pulled (default `mistral`) |
-| Optional | `mlx-lm` (`/opt/homebrew/bin/mlx_lm.generate`) for MLX models; an OpenRouter API key; Nova Gateway on `127.0.0.1:18792`; SwarmUI or Automatic1111 for artwork |
+| AI (optional) | Any one of: Ollama (default `localhost:11434`, at least one model pulled, default `mistral`), `mlx-lm` (`/opt/homebrew/bin/mlx_lm.generate`), TinyLLM, TinyChat, OpenWebUI, Nova Gateway (`127.0.0.1:18792`), an OpenRouter key or an OpenAI key. With none of them, the scripted narrator runs the game. |
+| Optional | SwarmUI or Automatic1111 for artwork |
 
 Apple Silicon with 16 GB RAM is recommended for larger local models.
 
@@ -441,18 +497,18 @@ Or open `Blompie.xcodeproj` in Xcode and press Cmd+R. The scheme builds the app 
 xcodebuild -project Blompie.xcodeproj -scheme Blompie test
 ```
 
-The suite contains **310 XCTest cases, all passing**, in 7 categories. Network-dependent logic (pool parsing, balancing, failover, the API gate) is factored into pure functions so it is tested without live backends.
+The suite contains **360 XCTest cases, all passing**, in 7 categories. Network-dependent logic is tested without live backends: pure functions for pool parsing, balancing and failover, and an injected `HTTPTransport` stub plus a stub narrator for the AI layer (`AIParityTests.swift`).
 
 | Category | Classes (test count) | Total | Covers |
 |---|---|---|---|
-| Security | SourceCodeSecurityTests (8), NovaAPIGateTests (10), InputSanitizationTests (3), EthicalAIGuardianSourceTests (6), ComprehensiveSecurityTests (9), PlayLoggerSecurityTests (8) | 44 | No hardcoded secrets, API gate (browser/Host/token/size), input limits, Keychain usage; play logging: no DB writes under XCTest, games-only role, verify-full TLS, bound parameters, BatchMode hand-off, sanitized/bounded JSON |
-| Performance | PerformanceTests (8), PlayLoggerPerformanceTests (2) | 10 | Gate throughput, constant-time compare independent of mismatch position, Ollama tag and OpenRouter model parsing, pool de-dup scaling, balancer selection; `XCTest measure` blocks with time budgets; play-log turn recording and summary encoding |
-| Retry | RetryTests (9), PlayLoggerRetryTests (6) | 15 | `LoadBalancer.firstSuccess` failover, unhealthy models never attempted, all-fail rethrow, in-flight bookkeeping, round-robin fairness after failover, re-authentication on retry after 429; play-log offline queue, backoff, recovery without duplicates, rejected rows dropped, bounded queue |
-| Unit | ComprehensiveUnitTests (30), AIBackendEnumTests (6), AIErrorTests (6), ImageStyleTests (3), ImageGenerationErrorTests (6), GameModelTests (14), ColorThemeTests (16), OllamaServiceTests (17), LoadBalancerTests (20), WidgetDataTests (9), AIBackendManagerTests (5), PlayLoggerUnitTests (10) | 142 | Models, enums, errors, themes, Ollama Codable contracts and tokens/sec, registry and balancer, widget data, play-log JSON/backoff/coalescing |
-| Integration | ComprehensiveIntegrationTests (9), NovaAPIServerTests (7), PlayLoggerIntegrationTests (3) | 19 | Component wiring, API server configuration, GameEngine + PlayLogger + in-memory DB |
-| Functional | ComprehensiveFunctionalTests (14), GameEngineTests (12), ResponseParsingTests (26), PlayLoggerFunctionalTests (6) | 58 | Engine behavior, settings, undo, achievements, save/load, action parsing, turn/scene/quit logging |
-| Frame | ComprehensiveFrameTests (18), PlayLoggerFrameTests (4) | 22 | Framework scaffolding: singletons and engines initialize with correct defaults (GameEngine, AIBackendManager, SharedDataManager, URLs, achievements, play-log contract constants) |
-| **Total** | 32 classes | **310** | |
+| Security | SourceCodeSecurityTests (8), NovaAPIGateTests (10), InputSanitizationTests (3), AIOutputValidationSecurityTests (6), ComprehensiveSecurityTests (9), PlayLoggerSecurityTests (8), AIParitySecurityTests (10) | 54 | No hardcoded secrets, API gate (browser/Host/token/size), input limits, Keychain round-trip and UserDefaults migration, keys never over http, local backends never get a key, OpenRouter attribution, one-time AIStudio key migration, AI off sends nothing, output validation (think blocks, template tokens, prompt echo, control chars); play logging security |
+| Performance | PerformanceTests (8), PlayLoggerPerformanceTests (2), AIParityPerformanceTests (5) | 15 | Gate throughput, constant-time compare, tag/model parsing, pool de-dup, balancer selection, validator and scripted-narrator throughput, fail-fast when nothing is reachable |
+| Retry | RetryTests (9), PlayLoggerRetryTests (6), AIParityRetryTests (8) | 23 | `LoadBalancer.firstSuccess` failover; 503 retried, 4xx not retried, retries bounded, Auto fails over in the fixed order, invalid output fails over, explicit backend does not fail over, timeouts applied, balancer failure falls through to the chain; play-log backoff |
+| Unit | ComprehensiveUnitTests (30), AIBackendEnumTests (6), AIErrorTests (6), ImageStyleTests (3), ImageGenerationErrorTests (6), GameModelTests (14), ColorThemeTests (16), OllamaServiceTests (17), LoadBalancerTests (20), WidgetDataTests (9), AIBackendManagerTests (5), PlayLoggerUnitTests (10), AIParityUnitTests (10) | 152 | Models, enums (incl. legacy backend-value migration), errors, themes, Ollama contracts, registry and balancer, endpoints and model names per backend, request/response helpers, URL policy, status text, widget data, play-log JSON |
+| Integration | ComprehensiveIntegrationTests (9), NovaAPIServerTests (7), PlayLoggerIntegrationTests (3), AIParityIntegrationTests (4) | 23 | Component wiring, API server, GameEngine + narrator + stub transport end to end (configured Ollama URL and model), play history `source` for llm / fallback / scripted turns |
+| Functional | ComprehensiveFunctionalTests (14), GameEngineTests (12), ResponseParsingTests (26), PlayLoggerFunctionalTests (6), AIParityFunctionalTests (8) | 66 | Engine behavior, parsing, logging; a failed AI call never loses a turn; AI off is fully playable (items, NPCs, places, achievements); scripted world connected and deterministic; model actions sanitized; prompt echo rejected |
+| Frame | ComprehensiveFrameTests (18), PlayLoggerFrameTests (4), AIParityFrameTests (5) | 27 | Singletons and defaults (AI on, Auto, retry/timeouts), shared manager isolated from real settings/Keychain under XCTest, settings round-trip with stable ids, OpenRouter constants |
+| **Total** | 38 classes | **360** | |
 
 Test sources live in `BlompieTests/`.
 
@@ -465,7 +521,7 @@ Test sources live in `BlompieTests/`.
 3. Watch the reply stream in. New suggestions appear when it finishes.
 4. Use **Undo** to rewind, **Save** / **Load** for named slots, **Export** for a transcript.
 5. Open the sidebar for locations, inventory and characters; the trophy button lists achievements; the stats button shows totals.
-6. Tune model, streaming, balancing, creativity, detail, tone, auto-save, random model mode and theme in **Settings**.
+6. Tune the AI narrator (on/off, backend, model, endpoints, keys), streaming, balancing, creativity, detail, tone, auto-save, random model mode and theme in **Settings**. The toolbar badge shows whether the narrator is online.
 
 ---
 
@@ -473,10 +529,14 @@ Test sources live in `BlompieTests/`.
 
 | Setting | Where | Default |
 |---|---|---|
-| Model | Settings > Model (refreshable list from Ollama) | `mistral` |
+| AI narrator on/off | Settings > AI Narrator (`AIBackend_Enabled`) | On |
+| Backend | Settings > AI Narrator (`AIBackend_Active`, lowercase id) | `auto` |
+| Model | Settings > AI Narrator (refreshable list from Ollama; OpenRouter/OpenAI/MLX/TinyLLM have their own) | `mistral` |
+| Endpoint URLs | Settings > AI Narrator > Endpoints (`AIBackend_*URL`) | localhost defaults; OpenRouter/OpenAI https |
+| OpenAI key | Settings > AI Narrator, Keychain `com.jordankoch.Blompie` | none |
 | Streaming | Settings | On |
 | Balancer toggles | Settings > Multi-Model Load Balancing | All off |
-| OpenRouter key | Settings (shown when frontier toggle is on), stored in Keychain | none |
+| OpenRouter key | Settings > Multi-Model Load Balancing, Keychain `com.jordankoch.Blompie.openrouter` | none (migrated once from AIStudio's item) |
 | Balancer policy | `AIBackendManager.balancerPolicy` | `leastBusy` |
 | Creativity (temperature) | Settings | 1.3 on first run |
 | Detail / Tone | Settings | Normal / Balanced |
@@ -485,8 +545,8 @@ Test sources live in `BlompieTests/`.
 | Random model mode | Settings, every 3/5/10/15 actions | Off, 5 |
 | Theme | Settings > Color Theme | Classic Green |
 | Font size | Settings slider or `Ctrl+Shift+=` / `Ctrl+Shift+-` | 14 pt |
-| Nova Gateway URL | `UserDefaults` key `AIBackend_NovaGatewayURL` | `http://127.0.0.1:18792` |
-| Ollama URL (balancer) | `UserDefaults` key `AIBackend_OllamaURL` | `http://localhost:11434` |
+| Nova Gateway URL | Settings > AI Narrator > Endpoints (`AIBackend_NovaGatewayURL`) | `http://127.0.0.1:18792` |
+| Ollama URL | Settings > AI Narrator > Endpoints (`AIBackend_OllamaURL`); used by the story path, model list, balancer and Nova API | `http://localhost:11434` |
 
 "Reset All Settings to Defaults" in Settings restores the game settings.
 
@@ -494,7 +554,7 @@ Test sources live in `BlompieTests/`.
 
 ## Repository Notes
 
-The repository root also contains `EthicalAIGuardian.swift`, `AIBackendManager+Enhanced.swift`, `AIBackendManager+EthicalGuardian.swift` and `AIBackendStatusMenu.swift`. These are legacy files from the shared AI backend module and are **not compiled into any target**; they are not part of the shipped app. (`EthicalAIGuardianSourceTests` only inspects the guardian source file.)
+`AIBackendManager.swift` and its two extensions live at the repository root but are compiled into the Blompie target. The legacy uncompiled files (`EthicalAIGuardian.swift`, `AIBackendManager+Enhanced.swift`, `+EthicalGuardian.swift`, `AIBackendStatusMenu.swift`) and the unused `Blompie/AICapabilities/*` were deleted in 1.2.0.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history and [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 

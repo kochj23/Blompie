@@ -194,6 +194,9 @@ struct ContentView: View {
 
                     Spacer()
 
+                    // AI narrator status: active backend + online/away, and who narrated the last turn
+                    NarratorStatusBadge(gameEngine: gameEngine)
+
                     // Token/sec dial gauge with modern styling
                     if gameEngine.lastTokensPerSecond > 0 {
                         HStack(spacing: 8) {
@@ -748,28 +751,8 @@ struct SettingsView: View {
                     .font(.system(.title, design: .monospaced))
                     .foregroundColor(ModernColors.textPrimary)
 
-                // Model Selection
-                SettingsSection(title: "AI Model", textColor: ModernColors.textPrimary) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Picker("Model", selection: $gameEngine.selectedModel) {
-                            ForEach(gameEngine.availableModels, id: \.self) { model in
-                                Text(model).tag(model)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .onChange(of: gameEngine.selectedModel) { _, _ in
-                            gameEngine.saveSettings()
-                        }
-
-                        Button("Refresh Available Models") {
-                            Task {
-                                await gameEngine.refreshAvailableModels()
-                            }
-                        }
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(ModernColors.textPrimary)
-                    }
-                }
+                // AI narrator: toggle, backend/model pickers, endpoints, keys, status, test
+                AINarratorSettingsSection(gameEngine: gameEngine)
 
                 // Font Size
                 SettingsSection(title: "Font Size", textColor: ModernColors.textPrimary) {
@@ -823,7 +806,7 @@ struct SettingsView: View {
                             }
 
                         // OpenRouter API key (single Keychain-backed key for all frontier models)
-                        if aiBackend.enableAllFrontierModels {
+                        if aiBackend.enableAllFrontierModels || aiBackend.activeBackend == .openRouter || aiBackend.activeBackend == .auto {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("OpenRouter API Key")
                                     .font(.system(.caption, design: .monospaced))
@@ -843,7 +826,7 @@ struct SettingsView: View {
                             }
                         }
 
-                        Text("When enabled, story generation is spread across the selected pool. Nova is never required — a failed health check simply drops it. Ollama alone keeps working with all toggles off.")
+                        Text("When enabled, story generation is spread across the selected pool first. Nova is never required: a failed health check simply drops it. With all toggles off, the AI Narrator backend above is used.")
                             .font(.system(.caption, design: .monospaced))
                             .foregroundColor(ModernColors.textSecondary)
                     }

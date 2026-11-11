@@ -1,6 +1,6 @@
 //
 //  KeychainStore.swift
-//  AIStudio
+//  Blompie (ported from AIStudio)
 //
 //  Created by Jordan Koch on 2026-02-19.
 //  Copyright © 2026 Jordan Koch. All rights reserved.
@@ -70,6 +70,15 @@ struct KeychainStore {
     func delete() -> Bool {
         let status = SecItemDelete(baseQuery as CFDictionary)
         return status == errSecSuccess || status == errSecItemNotFound
+    }
+
+    /// One-time migration: when `target` has no value and `legacy` does, copy the
+    /// legacy secret into `target`. The legacy item is left untouched (another app
+    /// may still own it). Returns true when a value was copied.
+    @discardableResult
+    static func migrate(from legacy: KeychainStore, to target: KeychainStore) -> Bool {
+        guard !target.hasValue, let value = legacy.get(), !value.isEmpty else { return false }
+        return target.set(value)
     }
 
     /// True if a non-empty secret is stored.

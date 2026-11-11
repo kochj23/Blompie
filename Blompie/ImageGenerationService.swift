@@ -5,13 +5,13 @@ import AppKit
 //  ImageGenerationService.swift
 //  Shared Image Generation Service
 //
-//  Uses ComfyUI, SwarmUI, or Automatic1111 for AI image generation
+//  Uses SwarmUI or Automatic1111 for AI image generation (ComfyUI removed in 1.2.0: it was never implemented)
 //  Author: Jordan Koch
 //  Date: 2026-01-21
 //
 
 /// Shared image generation service for AI-enabled projects
-/// Supports: ComfyUI, SwarmUI, Automatic1111, OpenAI DALL-E
+/// Supports: SwarmUI, then Automatic1111
 class ImageGenerationService: ObservableObject {
 
     // MARK: - Published Properties
@@ -50,8 +50,6 @@ class ImageGenerationService: ObservableObject {
         // Determine which backend to use
         if aiBackend.isSwarmUIAvailable {
             return try await generateWithSwarmUI(prompt: prompt, style: style, size: size)
-        } else if aiBackend.isComfyUIAvailable {
-            return try await generateWithComfyUI(prompt: prompt, style: style, size: size)
         } else if aiBackend.isAutomatic1111Available {
             return try await generateWithAutomatic1111(prompt: prompt, style: style, size: size)
         } else {
@@ -126,21 +124,6 @@ class ImageGenerationService: ObservableObject {
         }
 
         return image
-    }
-
-    // MARK: - ComfyUI Implementation
-
-    private func generateWithComfyUI(
-        prompt: String,
-        style: ServiceImageStyle,
-        size: ServiceImageSize
-    ) async throws -> NSImage {
-
-        await updateProgress(0.1)
-
-        // ComfyUI workflow would be more complex
-        // For now, return placeholder
-        throw ServiceImageGenerationError.notImplemented("ComfyUI integration coming soon")
     }
 
     // MARK: - Automatic1111 Implementation
@@ -304,7 +287,7 @@ enum ServiceImageGenerationError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noBackendAvailable:
-            return "No image generation backend available. Please start ComfyUI, SwarmUI, or Automatic1111."
+            return "No image generation backend available. Please start SwarmUI or Automatic1111."
         case .invalidURL:
             return "Invalid backend URL configuration"
         case .invalidResponse:

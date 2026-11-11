@@ -15,7 +15,7 @@ The AI is optional. Switch it off, or let every backend go down, and a built-in 
 
 Blompie also exposes a token-protected loopback HTTP API so AI agents (Nova, Claude Code, scripts) can play adventures programmatically, and ships a WidgetKit widget that shows your current game at a glance.
 
-Written by Jordan Koch ([@kochj23](https://github.com/kochj23)).
+Written by Jordan Koch ([@kochj23](https://github.com/kochj23)). Current version **1.2.0 (build 6)**; release history in [CHANGELOG.md](CHANGELOG.md).
 
 ![Blompie main window](Screenshots/main-window.png)
 
@@ -48,6 +48,7 @@ Written by Jordan Koch ([@kochj23](https://github.com/kochj23)).
 | Feature | Details |
 |---|---|
 | Procedural adventures | A Zork-style game-master system prompt drives the model to create locations, NPCs, items, puzzles and plot turns. Combat is deliberately non-lethal; conflicts are puzzles, negotiations or escapes. |
+| Scripted narrator | With AI off or unreachable, a deterministic rule-based world (Cinnamon Meadow, Bell Tower, Belfry, Upside-Down Market, Lopsided Library, Whispering Woods, Mirror Pond; items, characters Pim, Quillby, Fennick and Tansy) answers in the same format, so tracking and achievements keep working. |
 | Story progression rules | The prompt requires every action to move the story forward (no re-describing the same scene). |
 | Free-form input | Type any action in natural language, or click one of the 2-4 suggested actions. |
 | Suggested actions | Parsed from the model reply in three accepted formats: `ACTIONS: a \| b \| c`, a numbered list (including `1. **Bold action**`), or a "What do you do?" style header followed by a list. If nothing parses, defaults are offered (Look around, Continue, Go back, Examine surroundings). |
@@ -65,7 +66,7 @@ Written by Jordan Koch ([@kochj23](https://github.com/kochj23)).
 
 ### Saving and Export
 
-- Unlimited named save slots (Save dialog), plus an `autosave` slot written after every AI reply when auto-save is enabled.
+- Unlimited named save slots (Save dialog), plus an `autosave` slot written after every turn (AI or scripted) when auto-save is enabled.
 - Load dialog lists slots newest first with date and message count; individual slots can be deleted, or all saves at once from Settings.
 - The autosave is restored automatically on launch; if none exists a new game starts.
 - Export the full transcript as a plain-text file via a save panel.
@@ -112,14 +113,10 @@ Connection: `192.168.1.5:5433`, database `games`, LAN role `blompie_mac` (insert
 |---|---|
 | Small | Adventure name, action count, achievement count |
 | Medium | Adventure name, last action, action count, achievement progress |
-| Large | Current adventure, achievement progress, AI backend status and model |
+| Large | Current adventure, achievement progress, AI narrator status (backend that answered last, or Scripted) and model |
 
 - Data is shared through the App Group `group.com.jkoch.blompie` (`SharedDataManager`), written after every AI reply and whenever an achievement unlocks, followed by a `WidgetCenter` timeline reload.
 - The timeline also refreshes every 15 minutes. A configuration intent toggles "Show AI Status".
-
-### AI Backends
-
-See [AI Options](#ai-options) below.
 
 ---
 
@@ -412,7 +409,7 @@ Responses never include CORS headers and always carry `X-Content-Type-Options: n
 |---|---|---|---|
 | GET | `/api/status` | | status, app, version, port, uptimeSeconds, activeSessions |
 | GET | `/api/ping` | | `{"pong":"true"}` |
-| GET | `/api/models` | | Installed Ollama models (from `127.0.0.1:11434/api/tags`) and a recommended model |
+| GET | `/api/models` | | Installed Ollama models (from the configured Ollama URL's `/api/tags`; empty when AI is off) and a recommended model |
 | GET | `/api/adventure/sessions` | | Array of sessions: sessionId, model, messageCount, inventory, isLoading |
 | POST | `/api/adventure/new` | optional `model` (default `qwen2.5:72b`), `tone` (`serious`/`balanced`/`whimsical`), `detail` (`brief`/`normal`/`detailed`) | 201 with sessionId, settings, initialMessages, suggestedActions |
 | GET | `/api/adventure/:id` or `/api/adventure/:id/state` | | isLoading, messageCount, last 10 messages, suggestedActions, inventory, locations, npcs, actionCount |
@@ -459,9 +456,9 @@ Apple Silicon with 16 GB RAM is recommended for larger local models.
 
 ### From DMG
 
-1. Download `Blompie-v1.1.2-build5.dmg` (current version **1.1.2, build 5**) from [Releases](https://github.com/kochj23/Blompie/releases).
-2. Open the DMG and drag **Blompie** to `/Applications`.
-3. Start Ollama and pull a model:
+1. Download `Blompie-v1.2.0-build6.dmg` (current version **1.2.0, build 6**) from [Releases](https://github.com/kochj23/Blompie/releases).
+2. Open the DMG and drag **Blompie** onto the `Applications` shortcut.
+3. Optional, for the AI narrator: start any supported backend, for example Ollama:
 
 ```bash
 brew install ollama
@@ -469,7 +466,9 @@ ollama serve
 ollama pull mistral
 ```
 
-4. Launch Blompie. It restores your autosave, or starts a new adventure.
+   Or point Settings > AI Narrator at an MLX / TinyLLM / TinyChat / OpenWebUI / Nova Gateway URL, or add an OpenRouter or OpenAI key. With no backend at all, the scripted narrator runs the game.
+
+4. Launch Blompie. It restores your autosave, or starts a new adventure. The toolbar badge shows whether the narrator is online.
 
 ---
 
@@ -566,4 +565,4 @@ MIT License. Copyright (c) 2024 Jordan Koch. See [LICENSE](LICENSE) for the full
 
 ---
 
-Written by Jordan Koch ([@kochj23](https://github.com/kochj23)).
+Written by Jordan Koch ([@kochj23](https://github.com/kochj23)). Current version **1.2.0 (build 6)**; release history in [CHANGELOG.md](CHANGELOG.md).

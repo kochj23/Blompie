@@ -81,32 +81,38 @@ enum NarrationValidator {
         var text = raw
 
         // Reasoning models: drop <think>...</think>. An unclosed block is all reasoning.
-        while let open = text.range(of: "<think>", options: .caseInsensitive) {
-            if let close = text.range(of: "</think>", options: .caseInsensitive, range: open.upperBound..<text.endIndex) {
+        while text.utf8.contains(UInt8(ascii: "<")),
+              let open = text.range(of: "<think>", options: [.caseInsensitive, .literal]) {
+            if let close = text.range(of: "</think>", options: [.caseInsensitive, .literal], range: open.upperBound..<text.endIndex) {
                 text.removeSubrange(open.lowerBound..<close.upperBound)
             } else {
                 text.removeSubrange(open.lowerBound..<text.endIndex)
             }
         }
         // Chat-template tokens such as <|im_start|>.
-        text = text.replacingOccurrences(of: "<\\|[^|>]{0,40}\\|>", with: "", options: .regularExpression)
-        // Control and bidi characters (keep newlines and tabs).
-        text = String(String.UnicodeScalarView(text.unicodeScalars.filter { scalar in
-            if scalar == "\n" || scalar == "\t" { return true }
-            if CharacterSet.controlCharacters.contains(scalar) { return false }
-            if (0x200B...0x200F).contains(scalar.value) || (0x202A...0x202E).contains(scalar.value)
-                || (0x2060...0x206F).contains(scalar.value) || scalar.value == 0xFEFF { return false }
-            return true
-        }))
+        if text.contains("<|") {
+            text = text.replacingOccurrences(of: "<\\|[^|>]{0,40}\\|>", with: "", options: .regularExpression)
+        }
+        // Control and bidi characters (keep newlines and tabs). Fast path: most
+        // replies contain none, so only rebuild the string when one is present.
+        if text.unicodeScalars.contains(where: isStrippable) {
+            var kept = String.UnicodeScalarView()
+            kept.append(contentsOf: text.unicodeScalars.lazy.filter { !isStrippable($0) })
+            text = String(kept)
+        }
         text = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard text.unicodeScalars.filter({ CharacterSet.letters.contains($0) }).count >= minLetters else {
-            return nil
+        // Enough letters to be narration (stop counting once the minimum is reached).
+        var letters = 0
+        for scalar in text.unicodeScalars where scalar.properties.isAlphabetic {
+            letters += 1
+            if letters >= minLetters { break }
         }
+        guard letters >= minLetters else { return nil }
         let echoes = promptEchoMarkers.filter { text.contains($0) }.count
         guard echoes < 2 else { return nil }
 
-        if text.count > maxNarrationChars {
+        if text.utf8.count > maxNarrationChars, text.count > maxNarrationChars {
             let clipped = String(text.prefix(maxNarrationChars))
             if let cut = clipped.lastIndex(where: { $0 == "\n" || $0 == " " }) {
                 text = String(clipped[..<cut])
@@ -115,6 +121,14 @@ enum NarrationValidator {
             }
         }
         return text
+    }
+
+    private static func isStrippable(_ scalar: Unicode.Scalar) -> Bool {
+        let v = scalar.value
+        if v == 0x0A || v == 0x09 { return false }                       // newline, tab
+        if v < 0x20 || (0x7F...0x9F).contains(v) { return true }          // C0/C1 controls
+        return (0x200B...0x200F).contains(v) || (0x202A...0x202E).contains(v)
+            || (0x2060...0x206F).contains(v) || v == 0xFEFF                // zero-width / bidi
     }
 
     /// Clamp parsed actions: trimmed, markdown stripped, 1...80 chars,

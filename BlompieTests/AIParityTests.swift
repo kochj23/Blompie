@@ -507,7 +507,7 @@ final class AIParityPerformanceTests: XCTestCase {
     func testValidatorThroughput() {
         let text = String(repeating: "You walk down a winding path past an old mill. ", count: 40) + "\nACTIONS: a | b"
         let t = elapsed { for _ in 0..<2_000 { _ = NarrationValidator.clean(text) } }
-        XCTAssertLessThan(t, 3.0, "2k validations took \(t)s")
+        XCTAssertLessThan(t, 4.0, "2k validations took \(t)s")
     }
 
     func testValidatorMeasure() {

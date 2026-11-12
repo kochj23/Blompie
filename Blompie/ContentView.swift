@@ -206,7 +206,7 @@ struct ContentView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(gameEngine.isSpectating)
-                    .help("Start a new adventure that the AI adventurer plays on its own. Not recorded in play history.")
+                    .help("Start a new adventure that the AI adventurer plays on its own. Recorded as an AI vs AI session.")
 
                     Spacer()
 

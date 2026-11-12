@@ -4,8 +4,8 @@
 ![Platform](https://img.shields.io/badge/platform-macOS%2014.0%2B-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Swift](https://img.shields.io/badge/Swift-SwiftUI-orange)
-![Version](https://img.shields.io/badge/version-1.3.0%20(build%207)-informational)
-![Tests](https://img.shields.io/badge/tests-382%20passing-brightgreen)
+![Version](https://img.shields.io/badge/version-1.4.0%20(build%208)-informational)
+![Tests](https://img.shields.io/badge/tests-385%20passing-brightgreen)
 
 **An AI-powered text adventure for macOS. Every playthrough is generated on the fly.**
 
@@ -15,7 +15,7 @@ The AI is optional. Switch it off, or let every backend go down, and a built-in 
 
 Blompie also exposes a token-protected loopback HTTP API so AI agents (Nova, Claude Code, scripts) can play adventures programmatically, and ships a WidgetKit widget that shows your current game at a glance.
 
-Written by Jordan Koch ([@kochj23](https://github.com/kochj23)). Current version **1.3.0 (build 7)**; release history in [CHANGELOG.md](CHANGELOG.md).
+Written by Jordan Koch ([@kochj23](https://github.com/kochj23)). Current version **1.4.0 (build 8)**; release history in [CHANGELOG.md](CHANGELOG.md).
 
 ![Blompie main window](Screenshots/main-window.png)
 
@@ -77,11 +77,12 @@ Click **Watch AI Play** in the toolbar to sit back: a new adventure starts and a
 | SPECTATING bar | Red indicator, turn count, who chose the last command (AI via backend or heuristic), a delay slider (0.5-10 s between turns, default 3 s), **Pause/Resume** and **Take Over**. |
 | Take over | **Take Over**, or clicking / pressing the number of any suggested action, stops the adventurer; you continue the same story. New Game or Load also stop it. |
 | Stops on its own | When the narration says the story ended (`THE END` / game over), after 60 adventurer turns, or when the last 8 commands contain only 1-2 distinct ones (loop). A transcript line says why. |
-| Not recorded | A spectator story is never written to the Nova Games play history (no `play.sessions` / `play.events` rows, so Nova never reviews it), including turns after a take-over, until you start a new game or load a save. Starting it closes your own open session as `completed`. It also does not overwrite your autosave or unlock achievements. |
+| Recorded as AI vs AI | Since 1.4.0 (watch contract v2) a watch game is its own play session with `player` `AI vs AI` (never a human, excluded from human stats), `summary.spectator = true`, `summary.matchup` (sides `adventurer` and `narrator`: `kind` `model` with backend id, model and label, or `engine` for the heuristic / scripted narrator) and `summary.fallbacks` (`{"adventurer": n, "narrator": n}`). Events are recorded as usual, and Nova journals it as an "AI vs AI" entry. Outcome: `completed` (story ended), `turn_limit`, `stalled` (loop) or `taken_over`. Starting a watch closes your own open session as `completed`. Watching does not overwrite your autosave or unlock achievements. |
+| Take over (recording) | The watch session ends as `taken_over` with everything so far, and a normal session (`player` `default`, `started_from` `takeover`) starts from that point. After a watch that stopped on its own, your next action starts a normal session (`started_from` `after_watch`). |
 
 ```mermaid
 flowchart TD
-    W[Watch AI Play] --> N[New adventure<br/>play history off for this story]
+    W[Watch AI Play] --> N["New adventure<br/>session player: AI vs AI, spectator"]
     N --> Q{"Stop condition?<br/>story ended, 60 turns, loop"}
     Q -- yes --> X["Stop: transcript says why<br/>player has the controls"]
     Q -- no --> P{Paused, or narrator busy?}
@@ -95,7 +96,7 @@ flowchart TD
     C --> V["Adventurer.validate (like player input)"]
     V --> T["performAction (narrator answers)"]
     T --> D[Wait for the delay] --> Q
-    U[Take Over / pick an action] --> X
+    U[Take Over / pick an action] --> TO["Watch session ends: taken_over<br/>normal session starts"] --> X
 ```
 
 ### Saving and Export
@@ -112,14 +113,14 @@ Since 1.1.2 Blompie records what you played in the shared play-history schema `p
 
 | When | What is written |
 |---|---|
-| New adventure, or loading any save (including the autosave at launch); never for a Watch AI Play story | A new `play.sessions` row (`game` `blompie-mac`, `client` `mac`, `player` `default`) and a `start` event (`setting` or `slot`/`resumed`, model, tone, detail). The previously open session ends with outcome `completed`. |
+| New adventure, or loading any save (including the autosave at launch), Watch AI Play (`player` `AI vs AI`, see Spectator Mode), or a take-over | A new `play.sessions` row (`game` `blompie-mac`, `client` `mac`, `player` `default`) and a `start` event (`setting` or `slot`/`resumed`, model, tone, detail). The previously open session ends with outcome `completed`. |
 | Opening narration | A `scene` event with a narrator excerpt (max 400 chars). |
 | Every turn | A `turn` event: turn number, your action (max 200 chars), narrator excerpt (max 400 chars), achievements unlocked that turn, and `source` (`llm`, `fallback` when the AI was unreachable and the scripted narrator answered, or `scripted` when AI is off). Since 1.2.0 a turn never fails: a fallback turn is recorded as a normal turn. The session's `last_seen_at`, `actions` and running `summary` (now with a `fallbacks` count) are updated. The `start` event also records `ai_enabled`. |
 | App quit | The session ends with outcome `quit` (best effort, up to 2 s). |
 
 The session `summary` holds: turns, started_from, slot, model, tone, detail, achievements unlocked this session and total, places / items / NPCs (last 40 each, plus counts), the last scene and the last 30 turns as `moments`. Blompie has no win condition, so there is no `game_over` event and no score.
 
-Logging never blocks a turn: rows go into a small in-memory queue (max 500, oldest events dropped first) drained in the background. If the DB is unreachable the queue is retried with backoff (5 s doubling to 5 min); rows the DB rejects are dropped. Under XCTest the logger has no DB connection. NovaAPIServer sessions and Watch AI Play stories are not logged.
+Logging never blocks a turn: rows go into a small in-memory queue (max 500, oldest events dropped first) drained in the background. If the DB is unreachable the queue is retried with backoff (5 s doubling to 5 min); rows the DB rejects are dropped. Under XCTest the logger has no DB connection. NovaAPIServer sessions are not logged.
 
 Connection: `192.168.1.5:5433`, database `games`, LAN role `blompie_mac` (insert/update/select of its own `play` rows only), SCRAM over TLS 1.2+ with `verify-full` against the bundled games-pg CA (`Blompie/Storage/games-pg-ca.crt`, server name `nova-core3`). The password lives only in Blompie's Data Protection keychain (service `nova-games-pg`, account `blompie_mac`). On first launch, if it is missing, Blompie fetches it once with `ssh -o BatchMode=yes kochj@192.168.1.5 sudo bash /srv/games/repo/deploy/remote.sh getpw blompie_mac` (stdout straight into the Keychain, never printed). **Settings > Play History** shows the status and has a "Fetch DB password from core3" button to repeat the hand-off.
 
@@ -260,7 +261,7 @@ graph TD
     WSDM --> AG
 
     subgraph Tests["BlompieTests (target: unit tests)"]
-        T[382 XCTest cases]
+        T[385 XCTest cases]
     end
     T -.-> App
 ```
@@ -490,7 +491,7 @@ Apple Silicon with 16 GB RAM is recommended for larger local models.
 
 ### From DMG
 
-1. Download `Blompie-v1.3.0-build7.dmg` (current version **1.3.0, build 7**) from [Releases](https://github.com/kochj23/Blompie/releases).
+1. Download `Blompie-v1.4.0-build8.dmg` (current version **1.4.0, build 8**) from [Releases](https://github.com/kochj23/Blompie/releases).
 2. Open the DMG and drag **Blompie** onto the `Applications` shortcut.
 3. Optional, for the AI narrator: start any supported backend, for example Ollama:
 
@@ -530,18 +531,18 @@ Or open `Blompie.xcodeproj` in Xcode and press Cmd+R. The scheme builds the app 
 xcodebuild -project Blompie.xcodeproj -scheme Blompie test
 ```
 
-The suite contains **382 XCTest cases, all passing**, in 7 categories. Network-dependent logic is tested without live backends: pure functions for pool parsing, balancing and failover, and an injected `HTTPTransport` stub plus a stub narrator for the AI layer (`AIParityTests.swift`).
+The suite contains **385 XCTest cases, all passing**, in 7 categories. Network-dependent logic is tested without live backends: pure functions for pool parsing, balancing and failover, and an injected `HTTPTransport` stub plus a stub narrator for the AI layer (`AIParityTests.swift`).
 
 | Category | Classes (test count) | Total | Covers |
 |---|---|---|---|
-| Security | SourceCodeSecurityTests (8), NovaAPIGateTests (10), InputSanitizationTests (3), AIOutputValidationSecurityTests (6), ComprehensiveSecurityTests (9), PlayLoggerSecurityTests (8), AIParitySecurityTests (10), SpectatorSecurityTests (3) | 57 | No hardcoded secrets, API gate (browser/Host/token/size), input limits, Keychain round-trip and UserDefaults migration, keys never over http, local backends never get a key, OpenRouter attribution, one-time AIStudio key migration, AI off sends nothing, output validation (think blocks, template tokens, prompt echo, control chars); play logging security; spectator command sanitizing, bounded prompt, spectator story never recorded |
+| Security | SourceCodeSecurityTests (8), NovaAPIGateTests (10), InputSanitizationTests (3), AIOutputValidationSecurityTests (6), ComprehensiveSecurityTests (9), PlayLoggerSecurityTests (8), AIParitySecurityTests (10), SpectatorSecurityTests (3) | 57 | No hardcoded secrets, API gate (browser/Host/token/size), input limits, Keychain round-trip and UserDefaults migration, keys never over http, local backends never get a key, OpenRouter attribution, one-time AIStudio key migration, AI off sends nothing, output validation (think blocks, template tokens, prompt echo, control chars); play logging security; spectator command sanitizing, bounded prompt, watch game recorded as `AI vs AI` with `summary.spectator`, never as the human |
 | Performance | PerformanceTests (8), PlayLoggerPerformanceTests (2), AIParityPerformanceTests (5), SpectatorPerformanceTests (1) | 16 | Gate throughput, constant-time compare, tag/model parsing, pool de-dup, balancer selection, validator and scripted-narrator throughput, fail-fast when nothing is reachable |
 | Retry | RetryTests (9), PlayLoggerRetryTests (6), AIParityRetryTests (8), SpectatorRetryTests (2) | 25 | `LoadBalancer.firstSuccess` failover; 503 retried, 4xx not retried, retries bounded, Auto fails over in the fixed order, invalid output fails over, explicit backend does not fail over, timeouts applied, balancer failure falls through to the chain; play-log backoff; failed or invalid AI adventurer falls back to the heuristic |
 | Unit | ComprehensiveUnitTests (30), AIBackendEnumTests (6), AIErrorTests (6), ImageStyleTests (3), ImageGenerationErrorTests (6), GameModelTests (14), ColorThemeTests (16), OllamaServiceTests (17), LoadBalancerTests (20), WidgetDataTests (9), AIBackendManagerTests (5), PlayLoggerUnitTests (10), AIParityUnitTests (10), SpectatorUnitTests (5) | 157 | Models, enums (incl. legacy backend-value migration), errors, themes, Ollama contracts, registry and balancer, endpoints and model names per backend, request/response helpers, URL policy, status text, widget data, play-log JSON |
-| Integration | ComprehensiveIntegrationTests (9), NovaAPIServerTests (7), PlayLoggerIntegrationTests (3), AIParityIntegrationTests (4), SpectatorIntegrationTests (2) | 25 | Component wiring, API server, GameEngine + narrator + stub transport end to end (configured Ollama URL and model), play history `source` for llm / fallback / scripted turns; AI adventurer command reaches the narrator; the player's session is closed and gets no spectator events |
-| Functional | ComprehensiveFunctionalTests (14), GameEngineTests (12), ResponseParsingTests (26), PlayLoggerFunctionalTests (6), AIParityFunctionalTests (8), SpectatorFunctionalTests (6) | 72 | Engine behavior, parsing, logging; a failed AI call never loses a turn; AI off is fully playable (items, NPCs, places, achievements); scripted world connected and deterministic; model actions sanitized; prompt echo rejected; spectator explores the whole scripted world, stops at the turn cap or story end, pause/resume, take-over, no achievements |
+| Integration | ComprehensiveIntegrationTests (9), NovaAPIServerTests (7), PlayLoggerIntegrationTests (3), AIParityIntegrationTests (4), SpectatorIntegrationTests (3) | 26 | Component wiring, API server, GameEngine + narrator + stub transport end to end (configured Ollama URL and model), play history `source` for llm / fallback / scripted turns; AI adventurer command reaches the narrator; the player's session is closed and gets no watch events; watch summary matchup and fallbacks; take-over ends the watch as `taken_over` and starts a human session |
+| Functional | ComprehensiveFunctionalTests (14), GameEngineTests (12), ResponseParsingTests (26), PlayLoggerFunctionalTests (6), AIParityFunctionalTests (8), SpectatorFunctionalTests (8) | 74 | Engine behavior, parsing, logging; a failed AI call never loses a turn; AI off is fully playable (items, NPCs, places, achievements); scripted world connected and deterministic; model actions sanitized; prompt echo rejected; spectator explores the whole scripted world, stops at the turn cap or story end, pause/resume, take-over, no achievements; next action after a watch starts a human session; matchup names the model |
 | Frame | ComprehensiveFrameTests (18), PlayLoggerFrameTests (4), AIParityFrameTests (5), SpectatorFrameTests (3) | 30 | Singletons and defaults (AI on, Auto, retry/timeouts), shared manager isolated from real settings/Keychain under XCTest, settings round-trip with stable ids, OpenRouter constants; spectator UI state (defaults, SPECTATING on start, cleared by New Game / Load) |
-| **Total** | 45 classes | **382** | |
+| **Total** | 45 classes | **385** | |
 
 Test sources live in `BlompieTests/`.
 
@@ -601,4 +602,4 @@ MIT License. Copyright (c) 2024 Jordan Koch. See [LICENSE](LICENSE) for the full
 
 ---
 
-Written by Jordan Koch ([@kochj23](https://github.com/kochj23)). Current version **1.3.0 (build 7)**; release history in [CHANGELOG.md](CHANGELOG.md).
+Written by Jordan Koch ([@kochj23](https://github.com/kochj23)). Current version **1.4.0 (build 8)**; release history in [CHANGELOG.md](CHANGELOG.md).

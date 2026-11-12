@@ -124,8 +124,9 @@ class GameEngine: ObservableObject {
     private var playMoments: [[String: Any]] = []
     static let maxPlayMoments = 30
 
-    // Spectator mode ("Watch AI Play"): an adventurer picks the commands. A story started
-    // this way is never written to play history (`unloggedStory`), even after a take-over.
+    // Spectator mode ("Watch AI Play"): an adventurer picks the commands. Recorded as an
+    // AI-vs-AI session (player "AI vs AI", summary.spectator, summary.matchup); Take Over ends
+    // it as `taken_over` and starts a normal session for the player.
     @Published private(set) var isSpectating = false
     @Published var spectatorPaused = false
     /// Seconds between adventurer turns (after the narrator finishes).
@@ -135,7 +136,12 @@ class GameEngine: ObservableObject {
     /// Who chose the last command: the AI backend, or the heuristic (AI away / off).
     @Published private(set) var lastAdventurerSource: NarrationSource?
     var spectatorMaxTurns = Adventurer.maxTurns
-    private(set) var unloggedStory = false
+    /// True while the open play session is an AI-vs-AI watch session.
+    private(set) var watchSession = false
+    /// After the watch stopped on its own, the player's next action starts a normal session.
+    private var recordOnNextAction = false
+    /// Turns where the AI adventurer's reply was unusable and the heuristic substituted.
+    private(set) var adventurerFallbacks = 0
     private var spectatorTask: Task<Void, Never>?
     private var adventurerTried: [String: Int] = [:]
     private var adventurerRecent: [String] = []
@@ -549,12 +555,8 @@ class GameEngine: ObservableObject {
     }
 
     func startNewGame(spectating: Bool = false) {
-        if spectating {
-            playLogger?.endSession(outcome: "completed")   // close the player's own session; nothing new is logged
-        } else {
-            stopSpectating(reason: nil)
-        }
-        unloggedStory = spectating
+        if !spectating { stopSpectating(reason: nil) }
+        recordOnNextAction = false
         messages = []
         conversationHistory = []
         currentActions = []
@@ -567,7 +569,8 @@ class GameEngine: ObservableObject {
         fallbackTurns = 0
         scripted.reset()
 
-        beginPlaySession(from: "new", slot: "", start: ["setting": "new adventure"])
+        beginPlaySession(from: spectating ? "watch" : "new", slot: "",
+                         start: ["setting": spectating ? "watch" : "new adventure"], watch: spectating)
 
         addMessage("=== BLOMPIE ===")
         addMessage(narrator.aiEnabled ? "A Text Adventure (AI narrator)" : "A Text Adventure (scripted narrator, AI off)")
@@ -585,6 +588,10 @@ class GameEngine: ObservableObject {
         // Save state before action for undo
         saveStateSnapshot()
 
+        if recordOnNextAction && !isSpectating {
+            recordOnNextAction = false
+            beginPlaySession(from: "after_watch", slot: "", start: ["setting": "after watch"])
+        }
         pendingPlayAction = action
 
         // Track action
@@ -925,7 +932,7 @@ class GameEngine: ObservableObject {
         conversationHistory = state.conversationHistory
         currentActions = state.currentActions
         stopSpectating(reason: nil)
-        unloggedStory = false
+        recordOnNextAction = false
         storyIsScripted = false
         scripted.reset()
         beginPlaySession(from: "load", slot: slotName,
@@ -962,8 +969,9 @@ class GameEngine: ObservableObject {
     // MARK: - Play history
 
     /// New adventure or loaded save: a new play session (the open one ends as `completed`).
-    func beginPlaySession(from origin: String, slot: String, start: [String: Any]) {
-        guard let playLogger = historyLogger else { return }
+    func beginPlaySession(from origin: String, slot: String, start: [String: Any], watch: Bool = false) {
+        watchSession = watch
+        guard let playLogger else { return }
         playTurn = 0
         playSlot = PlayJSON.clean(slot, max: 64)
         playStartedFrom = origin
@@ -977,14 +985,16 @@ class GameEngine: ObservableObject {
         detail["ai_enabled"] = narrator.aiEnabled
         detail["tone"] = toneStyle.rawValue
         detail["detail"] = detailLevel.rawValue
-        playLogger.beginSession(start: detail, summary: playSummary())
+        if watch { detail["matchup"] = watchMatchup() }
+        playLogger.beginSession(start: detail, summary: playSummary(),
+                                player: watch ? PlayLogger.watchPlayer : PlayLogger.player)
     }
 
     /// After the narrator answered (or failed): a `turn` event for a player action, or a `scene` event for the
     /// opening narration. `source` (llm / fallback / scripted) is recorded when given. Never throws, never waits.
     func recordPlayNarration(_ narrative: String, failed: Bool, source: NarrationSource? = nil) {
         defer { turnUnlocks = [] }
-        guard let playLogger = historyLogger else { pendingPlayAction = nil; return }
+        guard let playLogger else { pendingPlayAction = nil; return }
         let excerpt = PlayJSON.clean(narrative, max: 400)
         if !excerpt.isEmpty { lastNarration = excerpt }
         if let action = pendingPlayAction {
@@ -1010,9 +1020,6 @@ class GameEngine: ObservableObject {
         }
     }
 
-    /// The play-history writer, or nil for a spectator story (never recorded, never reviewed by Nova).
-    private var historyLogger: PlayLogger? { unloggedStory ? nil : playLogger }
-
     /// Self-contained session summary for Nova's reporter. Lists are capped; no paths or personal data.
     func playSummary() -> [String: Any] {
         var s: [String: Any] = [
@@ -1034,7 +1041,27 @@ class GameEngine: ObservableObject {
         ]
         if !playSlot.isEmpty { s["slot"] = playSlot }
         if !lastNarration.isEmpty { s["last_scene"] = lastNarration }
+        if watchSession {
+            s["spectator"] = true
+            s["matchup"] = watchMatchup()
+            s["fallbacks"] = ["adventurer": adventurerFallbacks, "narrator": fallbackTurns]
+        }
         return s
+    }
+
+    /// `summary.matchup` of a watch session: the adventurer and the narrator sides.
+    func watchMatchup() -> [String: Any] {
+        let backend = (narrator as? AIBackendManager)?.activeBackend
+        let model = PlayJSON.clean(selectedModel, max: 64)
+        func side(_ name: String, engineLabel: String) -> [String: Any] {
+            guard narrator.aiEnabled else {
+                return ["side": name, "kind": "engine", "backend": NSNull(), "model": NSNull(), "label": engineLabel]
+            }
+            return ["side": name, "kind": "model", "backend": backend?.rawValue ?? NSNull(), "model": model,
+                    "label": PlayJSON.clean([backend?.shortName, model].compactMap { $0 }.joined(separator: " "), max: 64)]
+        }
+        return ["sides": [side("adventurer", engineLabel: "Heuristic adventurer"),
+                          side("narrator", engineLabel: "Scripted narrator")]]
     }
 
     // MARK: - Spectator mode
@@ -1048,33 +1075,47 @@ class GameEngine: ObservableObject {
         spectatorTurns = 0
         adventurerTried = [:]
         adventurerRecent = []
+        adventurerFallbacks = 0
         lastAdventurerSource = nil
         addMessage("[SPECTATING: the AI adventurer is playing. Pick an action or Take Over to play.]")
         addMessage("")
         spectatorTask = Task { await runSpectator() }
     }
 
-    /// Hand the controls back to the player (the story continues, still unrecorded).
-    func takeOver() { stopSpectating(reason: "you took over") }
+    /// Hand the controls back to the player: the watch session ends as `taken_over` and a
+    /// normal session starts from here.
+    func takeOver() {
+        guard isSpectating else { return }
+        stopSpectating(reason: "you took over", outcome: "taken_over")
+        recordOnNextAction = false
+        beginPlaySession(from: "takeover", slot: "", start: ["setting": "take over"])
+    }
 
-    func stopSpectating(reason: String?) {
+    /// Stop the adventurer. `outcome` ends the watch session; nil leaves it to the next session start.
+    func stopSpectating(reason: String?, outcome: String? = nil) {
         spectatorTask?.cancel()
         spectatorTask = nil
         guard isSpectating else { return }
         isSpectating = false
         spectatorPaused = false
         adventurerThinking = false
+        if let outcome, watchSession {
+            playLogger?.endSession(outcome: outcome, summary: playSummary())
+            watchSession = false
+            recordOnNextAction = true
+        }
         if let reason {
             addMessage("[Spectating stopped: \(reason). You have the controls.]")
             addMessage("")
         }
     }
 
-    /// Why spectating must stop now, or nil: story ended, turn cap, or a command loop.
-    func spectatorStopReason() -> String? {
-        if messages.suffix(8).contains(where: { Adventurer.storyEnded($0.text) }) { return "the story ended" }
-        if spectatorTurns >= spectatorMaxTurns { return "reached the \(spectatorMaxTurns)-turn limit" }
-        if Adventurer.isLooping(adventurerRecent) { return "the adventurer is going in circles" }
+    /// Why spectating must stop now (and the watch session's outcome), or nil:
+    /// story ended, turn cap, or a command loop.
+    func spectatorStopReason() -> (reason: String, outcome: String)? {
+        if messages.suffix(8).contains(where: { Adventurer.storyEnded($0.text) }) { return ("the story ended", "completed") }
+        if spectatorTurns >= spectatorMaxTurns { return ("reached the \(spectatorMaxTurns)-turn limit", "turn_limit") }
+        if Adventurer.isLooping(adventurerRecent) { return ("the adventurer is going in circles", "stalled") }
         return nil
     }
 
@@ -1086,7 +1127,7 @@ class GameEngine: ObservableObject {
                 if !isLoading && !spectatorPaused { waited += 0.1 }
             }
             guard isSpectating && !Task.isCancelled else { return }
-            if let reason = spectatorStopReason() { stopSpectating(reason: reason); return }
+            if let stop = spectatorStopReason() { stopSpectating(reason: stop.reason, outcome: stop.outcome); return }
             let command = await nextAdventurerCommand()
             guard isSpectating && !Task.isCancelled && !spectatorPaused && !isLoading else { continue }
             spectatorTurns += 1
@@ -1113,6 +1154,7 @@ class GameEngine: ObservableObject {
             }
         }
         lastAdventurerSource = narrator.aiEnabled ? .fallback : .scripted
+        if narrator.aiEnabled { adventurerFallbacks += 1 }
         return Adventurer.pick(from: currentActions, tried: adventurerTried)
     }
 

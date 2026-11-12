@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Performance improvements
 - Additional features based on community feedback
 
+## [1.4.0] (build 8) - 2026-11-12
+
+Watch contract v2: AI-vs-AI watch games are recorded and journaled.
+
+### Changed
+- A Watch AI Play game is recorded as its own play session: `player` `AI vs AI` (never a human), `summary.spectator = true`, `summary.matchup` (adventurer and narrator sides: backend, model, label, or `engine` for the built-in AI) and `summary.fallbacks` (`adventurer`, `narrator`). Outcomes: `completed`, `turn_limit`, `stalled`, `taken_over`. This replaces 1.3.0's "never record".
+- Take Over ends the watch session as `taken_over` and starts a normal session (`started_from` `takeover`). After a watch that stopped on its own, the next action starts a normal session (`after_watch`).
+- `PlayLogger.beginSession` takes a `player`.
+- Tests: the "nothing recorded" test is replaced by watch-recording tests (385 total).
+
 ## [1.3.0] (build 7) - 2026-11-12
 
 Watch AI Play: a spectator mode where an AI adventurer plays the game on its own.

@@ -139,6 +139,8 @@ final class PlayLogger: ObservableObject, @unchecked Sendable {
     static let game = "blompie-mac"
     static let client = "mac"
     static let player = "default"
+    /// `player` of an AI-vs-AI (Watch AI Play) session: never a human, excluded from human stats.
+    static let watchPlayer = "AI vs AI"
     static let maxQueue = 500
 
     /// The app's logger. Under XCTest it never has a sink (no DB writes from tests).
@@ -198,12 +200,12 @@ final class PlayLogger: ObservableObject, @unchecked Sendable {
     // MARK: Session API (cheap, synchronous, safe from any thread)
 
     /// Start a new session (ending the open one as `completed`) and log its `start` event.
-    func beginSession(start: [String: Any], summary: [String: Any]) {
+    func beginSession(start: [String: Any], summary: [String: Any], player: String = PlayLogger.player) {
         guard isEnabled else { return }
         let t = now()
         lock.lock()
         closeLocked(outcome: "completed", summary: nil, at: t)
-        let row = PlaySessionRow(id: UUID(), game: Self.game, client: Self.client, player: Self.player,
+        let row = PlaySessionRow(id: UUID(), game: Self.game, client: Self.client, player: player,
                                  startedAt: t, lastSeenAt: t, endedAt: nil, outcome: nil, score: nil, actions: 0,
                                  summaryJSON: PlayJSON.encode(summary, maxBytes: PlayJSON.maxSummaryBytes))
         current = row

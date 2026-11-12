@@ -72,7 +72,7 @@ struct SpectatorBar: View {
                 .help("Seconds between adventurer turns")
             Button(gameEngine.spectatorPaused ? "Resume" : "Pause") { gameEngine.spectatorPaused.toggle() }
             Button("Take Over") { gameEngine.takeOver() }
-                .help("Stop the adventurer and play from here (this story is still not recorded)")
+                .help("Stop the adventurer and play from here (the watch session ends as taken over; your own session starts)")
         }
         .font(.system(size: gameEngine.fontSize - 3, design: .monospaced))
         .padding(.horizontal, 14)

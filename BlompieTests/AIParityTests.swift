@@ -841,24 +841,26 @@ final class SpectatorSecurityTests: XCTestCase {
         XCTAssertLessThan(p[1].content.count, 12 * 401 + 200)
     }
 
-    /// Hard rule: a spectator session writes nothing to the Nova Games DB (so Nova never reviews it).
+    /// Watch contract v2: a watch game is recorded as player "AI vs AI" with summary.spectator, never as a human.
     @MainActor
-    func testSpectatorSessionIsNeverRecorded() async {
+    func testWatchSessionIsRecordedAsAIvsAINeverAsTheHuman() async throws {
         let sink = MemoryPlaySink()
         let logger = PlayFixtures.logger(sink)
         let engine = spectator(StubNarrator(aiEnabled: false), logger: logger, maxTurns: 4)
         engine.startSpectating()
         defer { engine.stopSpectating(reason: nil) }
         await waitUntil { !engine.isSpectating }
-        XCTAssertEqual(engine.spectatorTurns, 4, "the adventurer played")
-        engine.performAction("Look around")   // after a take-over: still the spectator story
-        await waitUntil { !engine.isLoading }
         _ = await logger.drainNow()
-        XCTAssertTrue(sink.allSessions.isEmpty)
-        XCTAssertEqual(sink.writes, 0)
-        XCTAssertEqual(logger.pendingCount, 0)
-        XCTAssertNil(logger.currentSession)
-        XCTAssertEqual(engine.playTurn, 0)
+        let s = try XCTUnwrap(sink.allSessions.first)
+        XCTAssertEqual(sink.allSessions.count, 1)
+        XCTAssertEqual(s.player, "AI vs AI")
+        XCTAssertNotEqual(s.player, PlayLogger.player)
+        XCTAssertEqual(s.outcome, "turn_limit")
+        XCTAssertEqual(s.actions, 4)
+        XCTAssertEqual(sink.eventKinds(s.id), ["start", "scene", "turn", "turn", "turn", "turn"])
+        let summary = PlayFixtures.json(s.summaryJSON)
+        XCTAssertEqual(summary["spectator"] as? Bool, true)
+        XCTAssertEqual(summary["started_from"] as? String, "watch")
     }
 }
 
@@ -874,6 +876,7 @@ final class SpectatorRetryTests: XCTestCase {
         await waitUntil { !engine.isSpectating }
         XCTAssertEqual(engine.spectatorTurns, 2, "never stalls")
         XCTAssertEqual(engine.lastAdventurerSource, .fallback)
+        XCTAssertEqual(engine.adventurerFallbacks, 2)
         XCTAssertEqual(engine.actionHistory.first, "Talk to Orrin", "heuristic picked from the suggested actions")
     }
 
@@ -923,26 +926,52 @@ final class SpectatorIntegrationTests: XCTestCase {
         XCTAssertTrue(engine.messages.contains { $0.text == "> Talk to Orrin" })
     }
 
-    func testPlayerSessionIsClosedAndNoSpectatorEventsAreAdded() async throws {
+    func testPlayerSessionIsClosedAndWatchSessionCarriesMatchup() async throws {
         let sink = MemoryPlaySink()
         let logger = PlayFixtures.logger(sink)
         let engine = spectator(StubNarrator(aiEnabled: false), logger: logger, maxTurns: 3)
-        engine.startNewGame()                         // the player's own, recorded game
+        engine.startNewGame()                         // the player's own game
         await settle(engine)
         engine.startSpectating()
         defer { engine.stopSpectating(reason: nil) }
         await waitUntil { !engine.isSpectating }
         _ = await logger.drainNow()
-        let s = try XCTUnwrap(sink.allSessions.first)
-        XCTAssertEqual(sink.allSessions.count, 1, "no session for the spectator story")
-        XCTAssertEqual(sink.eventKinds(s.id), ["start", "scene"], "no adventurer turns")
-        XCTAssertEqual(s.outcome, "completed")
-        XCTAssertEqual(s.actions, 0)
+        let human = try XCTUnwrap(sink.allSessions.first { $0.player == PlayLogger.player })
+        XCTAssertEqual(sink.eventKinds(human.id), ["start", "scene"], "no watch turns in the player's session")
+        XCTAssertEqual(human.outcome, "completed")
+        XCTAssertNil(PlayFixtures.json(human.summaryJSON)["spectator"])
+        let watch = try XCTUnwrap(sink.allSessions.first { $0.player == PlayLogger.watchPlayer })
+        let summary = PlayFixtures.json(watch.summaryJSON)
+        let sides = try XCTUnwrap((summary["matchup"] as? [String: Any])?["sides"] as? [[String: Any]])
+        XCTAssertEqual(sides.map { $0["side"] as? String }, ["adventurer", "narrator"])
+        XCTAssertEqual(sides.map { $0["kind"] as? String }, ["engine", "engine"], "AI off: both sides are the built-in AI")
+        XCTAssertEqual(sides.first?["label"] as? String, "Heuristic adventurer")
+        XCTAssertEqual(summary["fallbacks"] as? [String: Int], ["adventurer": 0, "narrator": 0])
+    }
 
-        engine.startNewGame()                         // a normal new game is recorded again
-        await settle(engine)
+    func testTakeOverEndsWatchAsTakenOverAndStartsAHumanSession() async throws {
+        let sink = MemoryPlaySink()
+        let logger = PlayFixtures.logger(sink)
+        let engine = spectator(StubNarrator(aiEnabled: false), logger: logger, maxTurns: 50)
+        engine.spectatorDelay = 0.3
+        engine.startSpectating()
+        await waitUntil { engine.spectatorTurns >= 2 }
+        await waitUntil { !engine.isLoading }
+        engine.takeOver()
+        engine.performAction("Look around")
+        await waitUntil { !engine.isLoading }
         _ = await logger.drainNow()
-        XCTAssertEqual(sink.allSessions.count, 2)
+        let watch = try XCTUnwrap(sink.allSessions.first { $0.player == PlayLogger.watchPlayer })
+        XCTAssertEqual(watch.outcome, "taken_over")
+        XCTAssertNotNil(watch.endedAt)
+        XCTAssertEqual(watch.actions, engine.spectatorTurns, "everything before the take-over stays in the watch record")
+        let human = try XCTUnwrap(sink.allSessions.first { $0.player == PlayLogger.player })
+        XCTAssertNil(human.endedAt)
+        XCTAssertEqual(human.actions, 1)
+        XCTAssertEqual(sink.eventKinds(human.id), ["start", "turn"])
+        let summary = PlayFixtures.json(human.summaryJSON)
+        XCTAssertNil(summary["spectator"])
+        XCTAssertEqual(summary["started_from"] as? String, "takeover")
     }
 }
 
@@ -1010,7 +1039,34 @@ final class SpectatorFunctionalTests: XCTestCase {
         XCTAssertEqual(engine.spectatorTurns, turns, "no turns after take-over")
         XCTAssertTrue(engine.messages.contains { $0.text.contains("you took over") })
         XCTAssertEqual(engine.messages.count, story)
-        XCTAssertTrue(engine.unloggedStory, "the spectator story stays unrecorded")
+        XCTAssertFalse(engine.watchSession, "after a take-over the player's session is a normal one")
+    }
+
+    func testAfterTheWatchStopsTheNextActionStartsAHumanSession() async throws {
+        let sink = MemoryPlaySink()
+        let logger = PlayFixtures.logger(sink)
+        let engine = spectator(StubNarrator(aiEnabled: false), logger: logger, maxTurns: 2)
+        engine.startSpectating()
+        defer { engine.stopSpectating(reason: nil) }
+        await waitUntil { !engine.isSpectating }
+        await waitUntil { !engine.isLoading }
+        engine.performAction("Look around")
+        await waitUntil { !engine.isLoading }
+        _ = await logger.drainNow()
+        XCTAssertEqual(sink.allSessions.first { $0.player == PlayLogger.watchPlayer }?.outcome, "turn_limit")
+        let human = try XCTUnwrap(sink.allSessions.first { $0.player == PlayLogger.player })
+        XCTAssertEqual(PlayFixtures.json(human.summaryJSON)["started_from"] as? String, "after_watch")
+        XCTAssertEqual(human.actions, 1)
+    }
+
+    func testMatchupWithAIOnNamesTheModel() {
+        let engine = makeEngine(StubNarrator(aiEnabled: true))
+        engine.selectedModel = "qwen3:8b"
+        let sides = engine.watchMatchup()["sides"] as? [[String: Any]] ?? []
+        XCTAssertEqual(sides.count, 2)
+        XCTAssertEqual(sides.map { $0["kind"] as? String }, ["model", "model"])
+        XCTAssertEqual(sides.first?["model"] as? String, "qwen3:8b")
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(engine.watchMatchup()))
     }
 
     func testSpectatingEarnsNoAchievements() async {
@@ -1035,7 +1091,7 @@ final class SpectatorFrameTests: XCTestCase {
         XCTAssertEqual(engine.spectatorMaxTurns, Adventurer.maxTurns)
         XCTAssertEqual(engine.spectatorTurns, 0)
         XCTAssertNil(engine.lastAdventurerSource)
-        XCTAssertFalse(engine.unloggedStory)
+        XCTAssertFalse(engine.watchSession)
     }
 
     func testStartShowsIndicatorAndNewGameClearsIt() async {
@@ -1043,11 +1099,11 @@ final class SpectatorFrameTests: XCTestCase {
         engine.spectatorDelay = 5
         engine.startSpectating()
         XCTAssertTrue(engine.isSpectating)
-        XCTAssertTrue(engine.unloggedStory)
+        XCTAssertTrue(engine.watchSession)
         XCTAssertTrue(engine.messages.contains { $0.text.hasPrefix("[SPECTATING") })
         engine.startNewGame()
         XCTAssertFalse(engine.isSpectating)
-        XCTAssertFalse(engine.unloggedStory)
+        XCTAssertFalse(engine.watchSession)
         await settle(engine)
     }
 
@@ -1061,6 +1117,6 @@ final class SpectatorFrameTests: XCTestCase {
         XCTAssertTrue(engine.isSpectating)
         engine.loadGame(fromSlot: slot)
         XCTAssertFalse(engine.isSpectating)
-        XCTAssertFalse(engine.unloggedStory)
+        XCTAssertFalse(engine.watchSession)
     }
 }

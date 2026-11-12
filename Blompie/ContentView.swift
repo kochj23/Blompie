@@ -105,11 +105,16 @@ struct ContentView: View {
                     .padding(.horizontal, 12)
                 }
 
-                // Action buttons with keyboard shortcuts
+                if gameEngine.isSpectating {
+                    SpectatorBar(gameEngine: gameEngine)
+                }
+
+                // Action buttons with keyboard shortcuts (picking one while spectating takes over)
                 if !gameEngine.currentActions.isEmpty && !gameEngine.isLoading {
                     VStack(spacing: 8) {
                         ForEach(Array(gameEngine.currentActions.enumerated()), id: \.element) { index, action in
                             Button(action: {
+                                if gameEngine.isSpectating { gameEngine.takeOver() }
                                 gameEngine.performAction(action)
                             }) {
                                 HStack {
@@ -191,6 +196,17 @@ struct ContentView: View {
                             .foregroundColor(ModernColors.textPrimary)
                     }
                     .buttonStyle(.plain)
+
+                    Button(action: {
+                        gameEngine.startSpectating()
+                    }) {
+                        Text("Watch AI Play")
+                            .font(.system(size: gameEngine.fontSize - 2, design: .monospaced))
+                            .foregroundColor(ModernColors.textPrimary)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(gameEngine.isSpectating)
+                    .help("Start a new adventure that the AI adventurer plays on its own. Not recorded in play history.")
 
                     Spacer()
 

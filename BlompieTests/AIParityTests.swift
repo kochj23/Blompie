@@ -767,3 +767,300 @@ final class AIParityFrameTests: XCTestCase {
         XCTAssertEqual(OpenRouterProvider.legacyKeychainService, "com.jkoch.aistudio.openrouter")
     }
 }
+
+// MARK: - Spectator mode ("Watch AI Play")
+
+/// Wait (bounded) until `done` is true.
+@MainActor
+private func waitUntil(timeout: TimeInterval = 10, _ done: () -> Bool) async {
+    let deadline = Date().addingTimeInterval(timeout)
+    while !done() && Date() < deadline { try? await Task.sleep(nanoseconds: 20_000_000) }
+}
+
+/// A spectator engine that plays fast: no delay, a small turn cap.
+@MainActor
+private func spectator(_ narrator: StoryNarrating, logger: PlayLogger? = nil, maxTurns: Int = 6) -> GameEngine {
+    let engine = makeEngine(narrator, logger: logger)
+    engine.spectatorDelay = 0
+    engine.spectatorMaxTurns = maxTurns
+    return engine
+}
+
+final class SpectatorUnitTests: XCTestCase {
+
+    func testValidateTakesTheCommandLine() {
+        XCTAssertEqual(Adventurer.validate("I think exploring is best.\nCOMMAND: Go north."), "Go north")
+        XCTAssertEqual(Adventurer.validate("**COMMAND:** `Talk to Pim`"), "Talk to Pim")
+        XCTAssertEqual(Adventurer.validate("> look around"), "look around")
+    }
+
+    func testValidateRejectsUnusableReplies() {
+        XCTAssertNil(Adventurer.validate(""))
+        XCTAssertNil(Adventurer.validate("COMMAND: ???"))
+        XCTAssertNil(Adventurer.validate("COMMAND: " + String(repeating: "a", count: 200)), "longer than a player action")
+    }
+
+    func testPickPrefersUntriedThenTakeTalkMove() {
+        let actions = ["Look around", "Go north", "Talk to Pim", "Take the lamp"]
+        let k = { Adventurer.key($0, in: actions) }
+        XCTAssertEqual(Adventurer.pick(from: actions, tried: [:]), "Take the lamp")
+        XCTAssertEqual(Adventurer.pick(from: actions, tried: [k("Take the lamp"): 1]), "Talk to Pim")
+        XCTAssertEqual(Adventurer.pick(from: actions, tried: [k("Take the lamp"): 1, k("Talk to Pim"): 1]), "Go north")
+        XCTAssertEqual(Adventurer.pick(from: actions, tried: ["take the lamp@other scene": 5]), "Take the lamp",
+                       "counts are per scene")
+        XCTAssertEqual(Adventurer.pick(from: [], tried: [:]), "Look around", "never stalls on an empty list")
+    }
+
+    func testLoopAndEndDetection() {
+        XCTAssertTrue(Adventurer.isLooping(Array(repeating: ["go north", "go south"], count: 4).flatMap { $0 }))
+        XCTAssertFalse(Adventurer.isLooping(["go north", "go south", "go north"]), "too short to judge")
+        XCTAssertFalse(Adventurer.isLooping(["a", "b", "c", "a", "b", "c", "a", "b"]))
+        XCTAssertTrue(Adventurer.storyEnded("And so the bell rang. THE END"))
+        XCTAssertTrue(Adventurer.storyEnded("Game Over."))
+        XCTAssertFalse(Adventurer.storyEnded("You reach the end of the hall."))
+    }
+
+    func testPromptCarriesStoryActionsAndRecentCommands() {
+        let p = Adventurer.prompt(story: ["You are in a hall."], actions: ["Go north", "Look around"], recent: ["look around"])
+        XCTAssertEqual(p.map(\.role), ["system", "user"])
+        XCTAssertTrue(p[0].content.contains("COMMAND:"))
+        XCTAssertTrue(p[1].content.contains("Go north | Look around"))
+        XCTAssertTrue(p[1].content.contains("look around"))
+    }
+}
+
+final class SpectatorSecurityTests: XCTestCase {
+
+    func testValidateStripsControlAndBidiCharacters() {
+        XCTAssertEqual(Adventurer.validate("COMMAND: Go\u{202E} no\u{200B}rth\u{0007}"), "Go north")
+    }
+
+    func testPromptBoundsUntrustedStoryText() {
+        let huge = String(repeating: "x", count: 50_000)
+        let p = Adventurer.prompt(story: Array(repeating: huge, count: 12), actions: [], recent: [])
+        XCTAssertLessThan(p[1].content.count, 12 * 401 + 200)
+    }
+
+    /// Hard rule: a spectator session writes nothing to the Nova Games DB (so Nova never reviews it).
+    @MainActor
+    func testSpectatorSessionIsNeverRecorded() async {
+        let sink = MemoryPlaySink()
+        let logger = PlayFixtures.logger(sink)
+        let engine = spectator(StubNarrator(aiEnabled: false), logger: logger, maxTurns: 4)
+        engine.startSpectating()
+        defer { engine.stopSpectating(reason: nil) }
+        await waitUntil { !engine.isSpectating }
+        XCTAssertEqual(engine.spectatorTurns, 4, "the adventurer played")
+        engine.performAction("Look around")   // after a take-over: still the spectator story
+        await waitUntil { !engine.isLoading }
+        _ = await logger.drainNow()
+        XCTAssertTrue(sink.allSessions.isEmpty)
+        XCTAssertEqual(sink.writes, 0)
+        XCTAssertEqual(logger.pendingCount, 0)
+        XCTAssertNil(logger.currentSession)
+        XCTAssertEqual(engine.playTurn, 0)
+    }
+}
+
+final class SpectatorRetryTests: XCTestCase {
+
+    @MainActor
+    func testFailedAIAdventurerFallsBackToHeuristic() async {
+        // opening narrated by AI, then every call (adventurer and narrator) fails
+        let narrator = StubNarrator(replies: [StubNarrator.ok(AIFixtures.narration)])
+        let engine = spectator(narrator, maxTurns: 2)
+        engine.startSpectating()
+        defer { engine.stopSpectating(reason: nil) }
+        await waitUntil { !engine.isSpectating }
+        XCTAssertEqual(engine.spectatorTurns, 2, "never stalls")
+        XCTAssertEqual(engine.lastAdventurerSource, .fallback)
+        XCTAssertEqual(engine.actionHistory.first, "Talk to Orrin", "heuristic picked from the suggested actions")
+    }
+
+    @MainActor
+    func testInvalidAIReplyFallsBackToHeuristic() async {
+        let narrator = StubNarrator(replies: [StubNarrator.ok(AIFixtures.narration), StubNarrator.ok("COMMAND: ####")])
+        let engine = spectator(narrator, maxTurns: 1)
+        engine.startSpectating()
+        defer { engine.stopSpectating(reason: nil) }
+        await waitUntil { !engine.isSpectating }
+        XCTAssertEqual(engine.actionHistory, ["Talk to Orrin"])
+        XCTAssertEqual(engine.lastAdventurerSource, .fallback)
+    }
+}
+
+final class SpectatorPerformanceTests: XCTestCase {
+
+    func testPickAndValidateAreCheap() {
+        let actions = ["Take the lamp", "Talk to Pim", "Go north", "Go east", "Look around", "Dance"]
+        let start = CFAbsoluteTimeGetCurrent()
+        var tried: [String: Int] = [:]
+        for _ in 0..<20_000 {
+            let a = Adventurer.pick(from: actions, tried: tried)
+            tried[Adventurer.key(a, in: actions), default: 0] += 1
+            _ = Adventurer.validate("Thinking.\nCOMMAND: \(a)")
+        }
+        XCTAssertLessThan(CFAbsoluteTimeGetCurrent() - start, 3.0)
+    }
+}
+
+@MainActor
+final class SpectatorIntegrationTests: XCTestCase {
+
+    func testAIAdventurerCommandReachesTheNarrator() async {
+        let narrator = StubNarrator(replies: [
+            StubNarrator.ok(AIFixtures.narration),                         // opening
+            StubNarrator.ok("COMMAND: Talk to Orrin", backend: .novaGateway), // adventurer
+            StubNarrator.ok(AIFixtures.narration)                          // narrator's reply
+        ])
+        let engine = spectator(narrator, maxTurns: 1)
+        engine.startSpectating()
+        defer { engine.stopSpectating(reason: nil) }
+        await waitUntil { !engine.isSpectating }
+        XCTAssertEqual(engine.actionHistory, ["Talk to Orrin"])
+        XCTAssertEqual(engine.lastAdventurerSource, .ai(.novaGateway))
+        XCTAssertEqual(engine.lastNarrationSource, .ai(.ollama))
+        XCTAssertTrue(engine.messages.contains { $0.text == "> Talk to Orrin" })
+    }
+
+    func testPlayerSessionIsClosedAndNoSpectatorEventsAreAdded() async throws {
+        let sink = MemoryPlaySink()
+        let logger = PlayFixtures.logger(sink)
+        let engine = spectator(StubNarrator(aiEnabled: false), logger: logger, maxTurns: 3)
+        engine.startNewGame()                         // the player's own, recorded game
+        await settle(engine)
+        engine.startSpectating()
+        defer { engine.stopSpectating(reason: nil) }
+        await waitUntil { !engine.isSpectating }
+        _ = await logger.drainNow()
+        let s = try XCTUnwrap(sink.allSessions.first)
+        XCTAssertEqual(sink.allSessions.count, 1, "no session for the spectator story")
+        XCTAssertEqual(sink.eventKinds(s.id), ["start", "scene"], "no adventurer turns")
+        XCTAssertEqual(s.outcome, "completed")
+        XCTAssertEqual(s.actions, 0)
+
+        engine.startNewGame()                         // a normal new game is recorded again
+        await settle(engine)
+        _ = await logger.drainNow()
+        XCTAssertEqual(sink.allSessions.count, 2)
+    }
+}
+
+@MainActor
+final class SpectatorFunctionalTests: XCTestCase {
+
+    func testHeuristicExploresTheWholeScriptedWorldWithoutLooping() {
+        let world = ScriptedNarrator()
+        var tried: [String: Int] = [:], recent: [String] = [], visited: Set<String> = [world.location]
+        for _ in 0..<Adventurer.maxTurns {
+            let actions = world.actions(for: world.currentPlace)
+            let command = Adventurer.pick(from: actions, tried: tried)
+            tried[Adventurer.key(command, in: actions), default: 0] += 1
+            recent = Array((recent + [command.lowercased()]).suffix(Adventurer.loopWindow))
+            XCTAssertFalse(Adventurer.isLooping(recent), "looping at \(command)")
+            _ = world.respond(to: command)
+            visited.insert(world.location)
+        }
+        XCTAssertEqual(visited, Set(ScriptedNarrator.places.map(\.id)))
+        XCTAssertEqual(world.taken.count, 4, "every item collected")
+    }
+
+    func testTurnCapStopsSpectating() async {
+        let engine = spectator(StubNarrator(aiEnabled: false), maxTurns: 5)
+        engine.startSpectating()
+        defer { engine.stopSpectating(reason: nil) }
+        await waitUntil { !engine.isSpectating }
+        XCTAssertEqual(engine.spectatorTurns, 5)
+        XCTAssertEqual(engine.lastAdventurerSource, .scripted)
+        XCTAssertTrue(engine.messages.contains { $0.text.contains("5-turn limit") })
+    }
+
+    func testStoryEndStopsSpectating() async {
+        let ending = "The bell rings and the meadow sings. THE END\nACTIONS: Look around"
+        let engine = spectator(StubNarrator(replies: [StubNarrator.ok(ending)]))
+        engine.startSpectating()
+        defer { engine.stopSpectating(reason: nil) }
+        await waitUntil { !engine.isSpectating }
+        XCTAssertEqual(engine.spectatorTurns, 0)
+        XCTAssertTrue(engine.messages.contains { $0.text.contains("the story ended") })
+    }
+
+    func testPauseHoldsAndResumeContinues() async {
+        let engine = spectator(StubNarrator(aiEnabled: false), maxTurns: 50)
+        engine.startSpectating()
+        engine.spectatorPaused = true
+        defer { engine.stopSpectating(reason: nil) }
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        XCTAssertEqual(engine.spectatorTurns, 0, "paused: no turns")
+        engine.spectatorPaused = false
+        await waitUntil { engine.spectatorTurns >= 2 }
+        XCTAssertGreaterThanOrEqual(engine.spectatorTurns, 2)
+    }
+
+    func testTakeOverStopsTheAdventurerAndKeepsTheStory() async {
+        let engine = spectator(StubNarrator(aiEnabled: false), maxTurns: 50)
+        engine.spectatorDelay = 0.3
+        engine.startSpectating()
+        await waitUntil { engine.spectatorTurns >= 1 }
+        engine.takeOver()
+        await waitUntil { !engine.isLoading }
+        let turns = engine.spectatorTurns, story = engine.messages.count
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        XCTAssertFalse(engine.isSpectating)
+        XCTAssertEqual(engine.spectatorTurns, turns, "no turns after take-over")
+        XCTAssertTrue(engine.messages.contains { $0.text.contains("you took over") })
+        XCTAssertEqual(engine.messages.count, story)
+        XCTAssertTrue(engine.unloggedStory, "the spectator story stays unrecorded")
+    }
+
+    func testSpectatingEarnsNoAchievements() async {
+        let engine = spectator(StubNarrator(aiEnabled: false), maxTurns: 6)
+        let before = engine.achievements.filter(\.isUnlocked).count
+        engine.startSpectating()
+        defer { engine.stopSpectating(reason: nil) }
+        await waitUntil { !engine.isSpectating }
+        XCTAssertEqual(engine.achievements.filter(\.isUnlocked).count, before)
+    }
+}
+
+/// UI state behind the SPECTATING bar and the Watch AI Play button.
+@MainActor
+final class SpectatorFrameTests: XCTestCase {
+
+    func testDefaults() {
+        let engine = makeEngine(StubNarrator(aiEnabled: false))
+        XCTAssertFalse(engine.isSpectating)
+        XCTAssertFalse(engine.spectatorPaused)
+        XCTAssertEqual(engine.spectatorDelay, 3)
+        XCTAssertEqual(engine.spectatorMaxTurns, Adventurer.maxTurns)
+        XCTAssertEqual(engine.spectatorTurns, 0)
+        XCTAssertNil(engine.lastAdventurerSource)
+        XCTAssertFalse(engine.unloggedStory)
+    }
+
+    func testStartShowsIndicatorAndNewGameClearsIt() async {
+        let engine = spectator(StubNarrator(aiEnabled: false), maxTurns: 50)
+        engine.spectatorDelay = 5
+        engine.startSpectating()
+        XCTAssertTrue(engine.isSpectating)
+        XCTAssertTrue(engine.unloggedStory)
+        XCTAssertTrue(engine.messages.contains { $0.text.hasPrefix("[SPECTATING") })
+        engine.startNewGame()
+        XCTAssertFalse(engine.isSpectating)
+        XCTAssertFalse(engine.unloggedStory)
+        await settle(engine)
+    }
+
+    func testLoadGameEndsSpectatingAndRecordsAgain() {
+        let engine = spectator(StubNarrator(aiEnabled: false))
+        let slot = "spectator-test-\(UUID().uuidString)"
+        engine.saveGame(toSlot: slot)
+        defer { engine.deleteSaveSlot(slot) }
+        engine.spectatorDelay = 5
+        engine.startSpectating()
+        XCTAssertTrue(engine.isSpectating)
+        engine.loadGame(fromSlot: slot)
+        XCTAssertFalse(engine.isSpectating)
+        XCTAssertFalse(engine.unloggedStory)
+    }
+}

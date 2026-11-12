@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Performance improvements
 - Additional features based on community feedback
 
+## [1.3.0] (build 7) - 2026-11-12
+
+Watch AI Play: a spectator mode where an AI adventurer plays the game on its own.
+
+### Added
+- **Watch AI Play** (toolbar): starts a new adventure; an AI adventurer chooses each command through the same `AIBackendManager` as the narrator. When AI is off, a call fails, the reply is unusable or it repeats itself, a heuristic picks the suggested action least tried in the current scene, so it never stalls. Commands are validated like player input (`Adventurer.validate`).
+- SPECTATING bar: indicator, turn count, who chose the last command, delay slider (0.5-10 s, default 3 s), Pause/Resume, Take Over. Picking any suggested action also takes over.
+- Stops on its own when the story ends (`THE END` / game over), after 60 adventurer turns, or on a command loop (last 8 commands with at most 2 distinct).
+- Tests: `Spectator*Tests` in all 7 categories (`AIParityTests.swift`).
+
+### Changed
+- A spectator story is never written to the Nova Games play history (no sessions or events, so no Nova review), including after a take-over, until the next New Game or Load. Starting one closes the player's open session as `completed`. Spectating also skips the autosave and achievements.
+- `performAction` / `startNewGame` set `isLoading` immediately, so a second click cannot start a turn while one is pending.
+
 ## [1.2.0] (build 6) - 2026-11-11
 
 AI parity with the other games: the AI is optional, every backend is configurable, and a failed AI call never loses a turn.

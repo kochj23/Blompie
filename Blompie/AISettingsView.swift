@@ -45,6 +45,45 @@ struct NarratorStatusBadge: View {
     }
 }
 
+// MARK: - Spectator bar
+
+/// Shown while the AI adventurer plays: SPECTATING indicator, turn count, who chose the
+/// last command, speed (delay between turns), pause/resume and take-over.
+struct SpectatorBar: View {
+    @ObservedObject var gameEngine: GameEngine
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text("● SPECTATING")
+                .fontWeight(.bold)
+                .foregroundColor(ModernColors.statusCritical)
+            Text("turn \(gameEngine.spectatorTurns)/\(gameEngine.spectatorMaxTurns)")
+                .foregroundColor(ModernColors.textSecondary)
+            if gameEngine.adventurerThinking {
+                Text("adventurer thinking...").foregroundColor(ModernColors.cyan)
+            } else if let source = gameEngine.lastAdventurerSource {
+                Text("adventurer: \(source.isAI ? source.label : "heuristic")").foregroundColor(ModernColors.textSecondary)
+            }
+            Spacer()
+            Text("Delay \(String(format: "%.1f", gameEngine.spectatorDelay))s")
+                .foregroundColor(ModernColors.textSecondary)
+            Slider(value: $gameEngine.spectatorDelay, in: 0.5...10, step: 0.5)
+                .frame(width: 110)
+                .help("Seconds between adventurer turns")
+            Button(gameEngine.spectatorPaused ? "Resume" : "Pause") { gameEngine.spectatorPaused.toggle() }
+            Button("Take Over") { gameEngine.takeOver() }
+                .help("Stop the adventurer and play from here (this story is still not recorded)")
+        }
+        .font(.system(size: gameEngine.fontSize - 3, design: .monospaced))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 12).fill(ModernColors.statusCritical.opacity(0.15)))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(ModernColors.statusCritical.opacity(0.6), lineWidth: 1))
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
+    }
+}
+
 // MARK: - Settings section
 
 struct AINarratorSettingsSection: View {

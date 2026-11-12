@@ -354,3 +354,82 @@ final class ScriptedNarrator {
         text.range(of: "\\b\(NSRegularExpression.escapedPattern(for: word))\\b", options: .regularExpression) != nil
     }
 }
+
+// MARK: - Adventurer (spectator mode)
+
+/// Chooses the player's next command in spectator mode ("Watch AI Play"). The AI
+/// adventurer goes through the same `StoryNarrating` backend as the narrator;
+/// when AI is off, a call fails or the reply is unusable, `pick` chooses from the
+/// suggested actions so the game never stalls. Every command is validated like
+/// player input before it reaches the engine.
+enum Adventurer {
+    /// Spectating stops after this many adventurer turns, so it never runs forever.
+    static let maxTurns = 60
+    /// Loop detection: the last `loopWindow` commands have at most `loopDistinct` distinct values.
+    static let loopWindow = 8
+    static let loopDistinct = 2
+
+    static let systemPrompt = """
+    You are the PLAYER of a text adventure, not the narrator. Read the story so far and choose the single next \
+    command that moves the adventure forward: explore new places, talk to characters, pick up useful items, \
+    solve puzzles. Do not repeat your recent commands.
+    Reply with exactly one line: COMMAND: <a short command, 2-6 words>
+    """
+
+    /// Prompt for the AI adventurer: recent story, suggested actions, its own recent commands.
+    static func prompt(story: [String], actions: [String], recent: [String]) -> [OllamaMessage] {
+        let scene = story.map { String($0.prefix(400)) }.filter { !$0.isEmpty }.joined(separator: "\n")
+        var user = "Story so far:\n\(scene)\n\nSuggested actions: \(actions.joined(separator: " | "))"
+        if !recent.isEmpty { user += "\nYour recent commands: \(recent.suffix(5).joined(separator: " | "))" }
+        user += "\nWhat is your next command?"
+        return [OllamaMessage(role: "system", content: systemPrompt), OllamaMessage(role: "user", content: user)]
+    }
+
+    /// Validate a command like player input: the `COMMAND:` line (or first line), markdown and control /
+    /// format characters stripped, needs a letter, 1...80 chars. nil = rejected.
+    static func validate(_ raw: String) -> String? {
+        let lines = raw.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "`", with: "")
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        var line = lines.first { $0.uppercased().hasPrefix("COMMAND:") } ?? lines.first ?? ""
+        if line.uppercased().hasPrefix("COMMAND:") { line = String(line.dropFirst(8)) }
+        line = String(String.UnicodeScalarView(line.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }))
+        line = line.trimmingCharacters(in: CharacterSet(charactersIn: ">\"'.").union(.whitespaces))
+        guard line.contains(where: \.isLetter) else { return nil }
+        return NarrationValidator.sanitizeActions([line]).first
+    }
+
+    /// Key for "tried" counts: the command within its set of suggested actions (a stand-in for
+    /// the current scene), so each scene's exits are tried in turn and the world gets explored.
+    static func key(_ action: String, in actions: [String]) -> String {
+        action.lowercased() + "@" + actions.map { $0.lowercased() }.sorted().joined(separator: "|")
+    }
+
+    /// Heuristic adventurer: the action least tried in this scene, preferring take > talk > move > other > look.
+    static func pick(from actions: [String], tried: [String: Int]) -> String {
+        func rank(_ action: String) -> Int {
+            let a = action.lowercased()
+            if ["take", "pick", "grab", "get "].contains(where: { a.hasPrefix($0) }) { return 0 }
+            if ["talk", "ask", "trade", "greet"].contains(where: { a.hasPrefix($0) }) { return 1 }
+            if ["go ", "enter", "climb", "follow", "open"].contains(where: { a.hasPrefix($0) }) { return 2 }
+            if ["look", "examine"].contains(where: { a.hasPrefix($0) }) { return 4 }
+            return 3
+        }
+        let options = actions.isEmpty ? ["Look around"] : actions
+        return options.enumerated().min { x, y in
+            (tried[key(x.element, in: options), default: 0], rank(x.element), x.offset)
+                < (tried[key(y.element, in: options), default: 0], rank(y.element), y.offset)
+        }?.element ?? "Look around"
+    }
+
+    /// True when the adventurer keeps issuing the same one or two commands.
+    static func isLooping(_ recent: [String]) -> Bool {
+        recent.count >= loopWindow && Set(recent.suffix(loopWindow)).count <= loopDistinct
+    }
+
+    /// True when the narration says the story is over.
+    static func storyEnded(_ text: String) -> Bool {
+        text.contains("THE END") || text.lowercased().contains("game over")
+    }
+}

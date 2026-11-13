@@ -118,6 +118,7 @@ class GameEngine: ObservableObject {
     private var playSlot = ""
     private var playStartedFrom = ""
     private var pendingPlayAction: String?
+    private var pendingPlayDriver: CommandDriver = .human
     private var turnUnlocks: [String] = []
     private var sessionUnlocks: [String] = []
     private var lastNarration = ""
@@ -136,6 +137,30 @@ class GameEngine: ObservableObject {
     /// Who chose the last command: the AI backend, or the heuristic (AI away / off).
     @Published private(set) var lastAdventurerSource: NarrationSource?
     var spectatorMaxTurns = Adventurer.maxTurns
+    /// Model vs model: each watch side's backend + model (`.auto` = the AI Narrator settings). Persisted.
+    @Published var adventurerSide = AIBackendManager.isRunningTests ? WatchSide() : WatchSide.load(GameEngine.adventurerSideKey) {
+        didSet { if adventurerSide != oldValue && !AIBackendManager.isRunningTests { adventurerSide.save(Self.adventurerSideKey) } }
+    }
+    @Published var narratorSide = AIBackendManager.isRunningTests ? WatchSide() : WatchSide.load(GameEngine.narratorSideKey) {
+        didSet { if narratorSide != oldValue && !AIBackendManager.isRunningTests { narratorSide.save(Self.narratorSideKey) } }
+    }
+    /// The adventurer's personality id (bundled `AdventurerPersonalities.json`). Persisted.
+    @Published var adventurerPersonality = AIBackendManager.isRunningTests ? AdventurerPersonality.fallback.id
+        : (UserDefaults.standard.string(forKey: GameEngine.personalityKey) ?? AdventurerPersonality.fallback.id) {
+        didSet { if !AIBackendManager.isRunningTests { UserDefaults.standard.set(adventurerPersonality, forKey: Self.personalityKey) } }
+    }
+    static let personalityKey = "BlompieWatchPersonality"
+    var personality: AdventurerPersonality { AdventurerPersonality.named(adventurerPersonality) }
+    /// Gameplay RNG, seeded per story; the seed goes into the play summary (cosmetic randomness stays on
+    /// the system generator). After Doom's P_Random / M_Random split.
+    private(set) var gameSeed: UInt64 = 0
+    var gameRNG = SplitMix64(seed: 0)
+    static let adventurerSideKey = "BlompieWatchAdventurerSide"
+    static let narratorSideKey = "BlompieWatchNarratorSide"
+    /// An invalid reply is re-asked this many times (with the error), then the built-in AI plays the turn.
+    static let maxReasks = 2
+    /// Request path for overridden sides (NovaAIKit). nil: overrides are ignored (API sessions).
+    let sideAI: SideAI?
     /// True while the open play session is an AI-vs-AI watch session.
     private(set) var watchSession = false
     /// After the watch stopped on its own, the player's next action starts a normal session.
@@ -146,9 +171,10 @@ class GameEngine: ObservableObject {
     private var adventurerTried: [String: Int] = [:]
     private var adventurerRecent: [String] = []
 
-    init(playLogger: PlayLogger? = nil, narrator: StoryNarrating = AIBackendManager.shared) {
+    init(playLogger: PlayLogger? = nil, narrator: StoryNarrating = AIBackendManager.shared, sideAI: SideAI? = nil) {
         self.playLogger = playLogger
         self.narrator = narrator
+        self.sideAI = sideAI
         loadSettings()
         initializeAchievements()
         Task {
@@ -554,7 +580,9 @@ class GameEngine: ObservableObject {
         """
     }
 
-    func startNewGame(spectating: Bool = false) {
+    func startNewGame(spectating: Bool = false, seed: UInt64? = nil) {
+        gameSeed = seed ?? UInt64.random(in: 0...UInt64.max)
+        gameRNG = SplitMix64(seed: gameSeed)
         if !spectating { stopSpectating(reason: nil) }
         recordOnNextAction = false
         messages = []
@@ -584,7 +612,9 @@ class GameEngine: ObservableObject {
         }
     }
 
-    func performAction(_ action: String) {
+    /// Play one command from any driver. Every command passes the one validator (`PlayerCommand`).
+    func performAction(_ raw: String, driver: CommandDriver = .human) {
+        guard let action = PlayerCommand.validate(raw) else { return }
         // Save state before action for undo
         saveStateSnapshot()
 
@@ -593,6 +623,7 @@ class GameEngine: ObservableObject {
             beginPlaySession(from: "after_watch", slot: "", start: ["setting": "after watch"])
         }
         pendingPlayAction = action
+        pendingPlayDriver = driver
 
         // Track action
         actionHistory.append(action)
@@ -621,7 +652,7 @@ class GameEngine: ObservableObject {
     private func switchToRandomModel() {
         guard !availableModels.isEmpty else { return }
         let otherModels = availableModels.filter { $0 != selectedModel }
-        if let randomModel = otherModels.randomElement() {
+        if let randomModel = otherModels.randomElement(using: &gameRNG) {
             selectedModel = randomModel
             addMessage("")
             addMessage("🔀 Switched to model: \(randomModel)")
@@ -727,6 +758,10 @@ class GameEngine: ObservableObject {
             applyScripted(action: action, source: .scripted)
             return
         }
+        if isSpectating, narratorSide.isOverride, let sideAI {
+            await narrateWithOverride(sideAI, action: action)
+            return
+        }
 
         var streamed = ""
         let onChunk: ((String) -> Void)? = streamingEnabled ? { chunk in
@@ -737,6 +772,7 @@ class GameEngine: ObservableObject {
             }
         } : nil
 
+        let started = Date()
         do {
             let reply = try await narrator.narrate(
                 messages: conversationHistory,
@@ -745,6 +781,8 @@ class GameEngine: ObservableObject {
                 onChunk: onChunk
             )
             if let tps = reply.tokensPerSecond { lastTokensPerSecond = tps }
+            recordModelReply(side: "narrator", backend: reply.backend.rawValue, model: reply.model, text: reply.text,
+                             latency: Date().timeIntervalSince(started), valid: true, attempt: 1)
 
             conversationHistory.append(OllamaMessage(role: "assistant", content: reply.text))
             trimConversationHistory()
@@ -757,6 +795,9 @@ class GameEngine: ObservableObject {
         } catch {
             streamingText = ""
             print("[GameEngine] AI narration failed, using scripted narrator: \(error.localizedDescription)")
+            recordModelReply(side: "narrator", backend: nil, model: selectedModel, text: "",
+                             latency: Date().timeIntervalSince(started), valid: false, attempt: 1,
+                             error: String(error.localizedDescription.prefix(120)))
             applyScripted(action: action, source: .fallback)
         }
     }
@@ -776,6 +817,7 @@ class GameEngine: ObservableObject {
         }
         if source == .fallback {
             fallbackTurns += 1
+            recordFallback(side: "narrator")
             addMessage("[scripted narrator: AI unavailable]")
         }
         let narrative = parseOllamaResponse(text)
@@ -1005,6 +1047,7 @@ class GameEngine: ObservableObject {
             if !turnUnlocks.isEmpty { detail["achievements"] = turnUnlocks }
             if failed { detail["failed"] = true }
             if let source { detail["source"] = source.playValue }
+            detail["driver"] = pendingPlayDriver.rawValue
             if !failed {
                 playMoments.append(["turn": playTurn, "action": PlayJSON.clean(act, max: 120),
                                     "narration": PlayJSON.clean(excerpt, max: 200)])
@@ -1038,6 +1081,7 @@ class GameEngine: ObservableObject {
             "npcs_count": metNPCs.count,
             "moments": playMoments,
             "fallbacks": fallbackTurns,
+            "seed": String(gameSeed),
         ]
         if !playSlot.isEmpty { s["slot"] = playSlot }
         if !lastNarration.isEmpty { s["last_scene"] = lastNarration }
@@ -1057,11 +1101,18 @@ class GameEngine: ObservableObject {
             guard narrator.aiEnabled else {
                 return ["side": name, "kind": "engine", "backend": NSNull(), "model": NSNull(), "label": engineLabel]
             }
+            let pick = name == "adventurer" ? adventurerSide : narratorSide
+            if pick.isOverride && sideAI != nil {
+                let m = PlayJSON.clean(pick.model.isEmpty ? pick.backend.defaultModel : pick.model, max: 64)
+                return ["side": name, "kind": "model", "backend": pick.backend.rawValue, "model": m,
+                        "label": PlayJSON.clean("\(pick.backend.displayName) \(m)", max: 64)]
+            }
             return ["side": name, "kind": "model", "backend": backend?.rawValue ?? NSNull(), "model": model,
                     "label": PlayJSON.clean([backend?.shortName, model].compactMap { $0 }.joined(separator: " "), max: 64)]
         }
-        return ["sides": [side("adventurer", engineLabel: "Heuristic adventurer"),
-                          side("narrator", engineLabel: "Scripted narrator")]]
+        var adventurer = side("adventurer", engineLabel: "Heuristic adventurer")
+        adventurer["personality"] = personality.id
+        return ["sides": [adventurer, side("narrator", engineLabel: "Scripted narrator")]]
     }
 
     // MARK: - Spectator mode
@@ -1069,8 +1120,8 @@ class GameEngine: ObservableObject {
     /// Start a new adventure that the adventurer plays on its own.
     func startSpectating() {
         spectatorTask?.cancel()
+        isSpectating = true          // first, so the opening scene already uses the narrator side
         startNewGame(spectating: true)
-        isSpectating = true
         spectatorPaused = false
         spectatorTurns = 0
         adventurerTried = [:]
@@ -1131,31 +1182,126 @@ class GameEngine: ObservableObject {
             let command = await nextAdventurerCommand()
             guard isSpectating && !Task.isCancelled && !spectatorPaused && !isLoading else { continue }
             spectatorTurns += 1
+            let driver: CommandDriver = lastAdventurerSource?.isAI == true ? .model : .heuristic
             adventurerTried[Adventurer.key(command, in: currentActions), default: 0] += 1
             adventurerRecent = Array((adventurerRecent + [command.lowercased()]).suffix(Adventurer.loopWindow))
-            performAction(command)
+            performAction(command, driver: driver)
         }
     }
 
-    /// AI adventurer through the narrator's backend; heuristic pick when AI is off, fails,
-    /// replies with nothing usable, or keeps repeating itself.
+    /// The adventurer's next command. AI (its own side, or the narrator settings) first; an invalid or
+    /// repeating command is re-asked up to `maxReasks` times with the reason; then the heuristic plays
+    /// the turn (`adventurerFallbacks`). Every command, AI or heuristic, goes through `PlayerCommand.validate`.
     private func nextAdventurerCommand() async -> String {
         if narrator.aiEnabled {
             adventurerThinking = true
             defer { adventurerThinking = false }
-            let prompt = Adventurer.prompt(story: messages.suffix(12).map(\.text), actions: currentActions,
-                                           recent: adventurerRecent)
-            if let reply = try? await narrator.narrate(messages: prompt, model: selectedModel,
-                                                        temperature: 0.8, onChunk: nil),
-               let command = Adventurer.validate(reply.text),
-               adventurerRecent.suffix(4).filter({ $0 == command.lowercased() }).count < 2 {
-                lastAdventurerSource = .ai(reply.backend)
-                return command
+            var prompt = Adventurer.prompt(story: messages.suffix(12).map(\.text), actions: currentActions,
+                                           recent: adventurerRecent, personality: personality)
+            for attempt in 1...(Self.maxReasks + 1) {
+                guard isSpectating else { break }
+                let started = Date()
+                let reply: (text: String, backend: String, model: String, source: NarrationSource, latency: TimeInterval?)
+                do {
+                    if adventurerSide.isOverride, let sideAI {
+                        let r = try await sideAI.complete(messages: prompt, side: adventurerSide,
+                                                          temperature: personality.temperature, maxTokens: 64)
+                        reply = (r.text, r.backend, r.model, .model("\(adventurerSide.backend.displayName) \(r.model)"), r.latency)
+                    } else {
+                        let r = try await narrator.narrate(messages: prompt, model: selectedModel,
+                                                           temperature: personality.temperature, onChunk: nil)
+                        reply = (r.text, r.backend.rawValue, r.model, .ai(r.backend), nil)
+                    }
+                } catch {
+                    // No answer at all (backend down): asking again won't help.
+                    recordModelReply(side: "adventurer", backend: adventurerSide.isOverride ? adventurerSide.backend.rawValue : nil,
+                                     model: adventurerSide.isOverride ? adventurerSide.model : selectedModel, text: "",
+                                     latency: Date().timeIntervalSince(started), valid: false, attempt: attempt,
+                                     error: String(error.localizedDescription.prefix(120)))
+                    break
+                }
+                let latency = reply.latency ?? Date().timeIntervalSince(started)
+                let problem: String
+                if let command = PlayerCommand.validate(reply.text, maxChars: NarrationValidator.maxActionChars) {
+                    if adventurerRecent.suffix(4).filter({ $0 == command.lowercased() }).count < 2 {
+                        recordModelReply(side: "adventurer", backend: reply.backend, model: reply.model, text: reply.text,
+                                         latency: latency, valid: true, attempt: attempt)
+                        lastAdventurerSource = reply.source
+                        return command
+                    }
+                    problem = "you keep repeating \"\(command)\"; choose something new"
+                } else {
+                    problem = "that is not a usable command"
+                }
+                recordModelReply(side: "adventurer", backend: reply.backend, model: reply.model, text: reply.text,
+                                 latency: latency, valid: false, attempt: attempt, error: problem)
+                prompt += [OllamaMessage(role: "assistant", content: String(reply.text.prefix(500))),
+                           OllamaMessage(role: "user", content: "Your reply was rejected: \(problem). Reply with exactly one line: COMMAND: <a short command, 2-6 words>")]
             }
         }
         lastAdventurerSource = narrator.aiEnabled ? .fallback : .scripted
-        if narrator.aiEnabled { adventurerFallbacks += 1 }
-        return Adventurer.pick(from: currentActions, tried: adventurerTried)
+        if narrator.aiEnabled {
+            adventurerFallbacks += 1
+            recordFallback(side: "adventurer")
+        }
+        let pick = Adventurer.pick(from: currentActions, tried: adventurerTried, personality: personality)
+        return PlayerCommand.validate(pick) ?? "Look around"
+    }
+
+    /// Narrator side on its own backend + model (watch only). Invalid replies are re-asked up to
+    /// `maxReasks` times; then the scripted narrator answers (`fallback`, counted in `fallbackTurns`).
+    private func narrateWithOverride(_ sideAI: SideAI, action: String?) async {
+        var request = conversationHistory
+        for attempt in 1...(Self.maxReasks + 1) {
+            let started = Date()
+            let r: SideReply
+            do {
+                r = try await sideAI.complete(messages: request, side: narratorSide, temperature: temperature, maxTokens: 1024)
+            } catch {
+                recordModelReply(side: "narrator", backend: narratorSide.backend.rawValue, model: narratorSide.model, text: "",
+                                 latency: Date().timeIntervalSince(started), valid: false, attempt: attempt,
+                                 error: String(error.localizedDescription.prefix(120)))
+                break
+            }
+            let latency = r.latency
+            if let text = NarrationValidator.clean(r.text) {
+                recordModelReply(side: "narrator", backend: r.backend, model: r.model, text: text,
+                                 latency: latency, valid: true, attempt: attempt)
+                conversationHistory.append(OllamaMessage(role: "assistant", content: text))
+                trimConversationHistory()
+                let source = NarrationSource.model("\(narratorSide.backend.displayName) \(r.model)")
+                let narrative = parseOllamaResponse(text)
+                lastNarrationSource = source
+                recordPlayNarration(narrative, failed: false, source: source)
+                finishTurn()
+                return
+            }
+            let problem = "not usable narration (too short, or it repeats the instructions)"
+            recordModelReply(side: "narrator", backend: r.backend, model: r.model, text: r.text,
+                             latency: latency, valid: false, attempt: attempt, error: problem)
+            request += [OllamaMessage(role: "assistant", content: String(r.text.prefix(2000))),
+                        OllamaMessage(role: "user", content: "Your reply was rejected: \(problem). Narrate the scene again and end with ACTIONS: a | b | c")]
+        }
+        applyScripted(action: action, source: .fallback)
+    }
+
+    /// The built-in AI played a side's turn (watch games): an event, so the record explains the turn.
+    func recordFallback(side: String) {
+        guard watchSession, let playLogger else { return }
+        playLogger.record(kind: "fallback", detail: ["side": side, "turn": playTurn + (side == "adventurer" ? 1 : 0)],
+                          action: false, summary: nil)
+    }
+
+    /// Design rule 2 (after Quake 3's Com_InitJournaling: the record is the source of truth): every model reply in a watch game is an event (side, backend, model, short excerpt,
+    /// latency, valid/fallback), so journals and replays read the record and never call a model again.
+    func recordModelReply(side: String, backend: String?, model: String, text: String, latency: TimeInterval,
+                          valid: Bool, attempt: Int, error: String? = nil) {
+        guard watchSession, let playLogger else { return }
+        var d: [String: Any] = ["side": side, "backend": backend.map { PlayJSON.clean($0, max: 32) } ?? NSNull(),
+                                "model": PlayJSON.clean(model, max: 64), "excerpt": PlayJSON.clean(text, max: 120),
+                                "latency_ms": Int((latency * 1000).rounded()), "valid": valid, "attempt": attempt]
+        if let error { d["error"] = PlayJSON.clean(error, max: 160) }
+        playLogger.record(kind: "model_reply", detail: d, action: false, summary: nil)
     }
 
     // MARK: - Export

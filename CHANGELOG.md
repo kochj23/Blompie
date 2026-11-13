@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Performance improvements
 - Additional features based on community feedback
 
+## [1.5.0] (build 9) - 2026-11-12
+
+Model vs model, and the id Software learnings.
+
+### Added
+- **NovaAIKit 1.1.0** dependency (Swift package, `from: "1.1.0"`).
+- **Model vs model** (Settings > Watch AI Play: model vs model): the adventurer and the narrator each pick a backend + model with the kit's picker and per-request override (Ollama, MLX, TinyLLM, TinyChat, OpenWebUI, Nova Gateway, OpenRouter, OpenAI, Anthropic, Gemini, xAI, Mistral, DeepSeek, Meta). "Settings" (default) keeps a side on the AI Narrator settings (local first). Cloud keys live in the Keychain; Blompie's existing OpenAI and OpenRouter keys are copied once.
+- **Re-ask:** an invalid or repeating command (or unusable narration from an overridden narrator) is re-asked up to 2 times with the reason; then the built-in AI plays the turn and `summary.fallbacks[side]` goes up.
+- **Allow Nova** switch (Settings > AI Narrator): off keeps every request, Auto, explicit or balanced, away from the Nova Gateway.
+- **The record is the source of truth** (after Quake 3 journaling): every model reply in a watch game is a `model_reply` event (side, backend, model, excerpt, latency, valid, attempt, error); built-in AI turns are `fallback` events.
+- **One command type** (after Quake 3 BotInputToUserCommand): `PlayerCommand.validate` for every driver; played commands record `driver` `human` / `model` / `heuristic`.
+- **Personality as data** (after Quake 3 bot characteristic files): bundled `AdventurerPersonalities.json` drives both the heuristic and the model prompt; picker in Settings; recorded in the summary.
+- **Seeded gameplay RNG** (after Doom P_Random / M_Random): SplitMix64 for gameplay randomness (random model switching), seed stored in the summary; cosmetic randomness stays separate.
+- Tests: 413 (28 new).
+
 ## [1.4.0] (build 8) - 2026-11-12
 
 Watch contract v2: AI-vs-AI watch games are recorded and journaled.

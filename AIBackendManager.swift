@@ -125,6 +125,9 @@ final class AIBackendManager: ObservableObject {
     @Published var enableAllFrontierModels = false
     /// Toggle: include the Nova Gateway (optional; never required).
     @Published var useNovaGateway = false
+    /// "Allow Nova" (NovaAIKit's No Nova switch, mirrored): off means nothing is ever sent to the
+    /// Nova Gateway: not in Auto, not as the selected backend, not in the balanced pool.
+    @Published var allowNova = true
     /// The models currently discovered for the balanced pool (all enabled sources).
     @Published var discoveredModels: [DiscoveredModel] = []
 
@@ -135,7 +138,7 @@ final class AIBackendManager: ObservableObject {
 
     /// True when any load-balancing toggle is on.
     var isBalancingEnabled: Bool {
-        useAllLocalModels || enableAllFrontierModels || useNovaGateway
+        useAllLocalModels || enableAllFrontierModels || (useNovaGateway && allowNova)
     }
 
     // MARK: - Secrets (Keychain only)
@@ -332,6 +335,7 @@ final class AIBackendManager: ObservableObject {
     /// Reachable backends in the fixed Auto order.
     func autoChain() -> [LLMBackendType] {
         FailoverPlanner.orderedHealthy(chain: LLMBackendType.autoOrder, availability: availabilityMap)
+            .filter { allowNova || $0 != .novaGateway }
     }
 
     /// Cloud backends count as available when a key is stored and the URL is https;
@@ -490,6 +494,7 @@ final class AIBackendManager: ObservableObject {
         useAllLocalModels = defaults.bool(forKey: "AIBackend_UseAllLocalModels")
         enableAllFrontierModels = defaults.bool(forKey: "AIBackend_EnableAllFrontierModels")
         useNovaGateway = defaults.bool(forKey: "AIBackend_UseNovaGateway")
+        allowNova = defaults.object(forKey: "AIBackend_AllowNova") as? Bool ?? true
         updateStatus()
     }
 
@@ -516,6 +521,7 @@ final class AIBackendManager: ObservableObject {
         defaults.set(useAllLocalModels, forKey: "AIBackend_UseAllLocalModels")
         defaults.set(enableAllFrontierModels, forKey: "AIBackend_EnableAllFrontierModels")
         defaults.set(useNovaGateway, forKey: "AIBackend_UseNovaGateway")
+        defaults.set(allowNova, forKey: "AIBackend_AllowNova")
         updateStatus()
     }
 }

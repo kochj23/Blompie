@@ -14,6 +14,7 @@
 //
 
 import XCTest
+import NovaAIKit
 @testable import Blompie
 
 // MARK: - Fixtures
@@ -789,15 +790,15 @@ private func spectator(_ narrator: StoryNarrating, logger: PlayLogger? = nil, ma
 final class SpectatorUnitTests: XCTestCase {
 
     func testValidateTakesTheCommandLine() {
-        XCTAssertEqual(Adventurer.validate("I think exploring is best.\nCOMMAND: Go north."), "Go north")
-        XCTAssertEqual(Adventurer.validate("**COMMAND:** `Talk to Pim`"), "Talk to Pim")
-        XCTAssertEqual(Adventurer.validate("> look around"), "look around")
+        XCTAssertEqual(PlayerCommand.validate("I think exploring is best.\nCOMMAND: Go north."), "Go north")
+        XCTAssertEqual(PlayerCommand.validate("**COMMAND:** `Talk to Pim`"), "Talk to Pim")
+        XCTAssertEqual(PlayerCommand.validate("> look around"), "look around")
     }
 
     func testValidateRejectsUnusableReplies() {
-        XCTAssertNil(Adventurer.validate(""))
-        XCTAssertNil(Adventurer.validate("COMMAND: ???"))
-        XCTAssertNil(Adventurer.validate("COMMAND: " + String(repeating: "a", count: 200)), "longer than a player action")
+        XCTAssertNil(PlayerCommand.validate(""))
+        XCTAssertNil(PlayerCommand.validate("COMMAND: ???"))
+        XCTAssertNil(PlayerCommand.validate("COMMAND: " + String(repeating: "a", count: 600)), "longer than the 500-char limit")
     }
 
     func testPickPrefersUntriedThenTakeTalkMove() {
@@ -832,7 +833,7 @@ final class SpectatorUnitTests: XCTestCase {
 final class SpectatorSecurityTests: XCTestCase {
 
     func testValidateStripsControlAndBidiCharacters() {
-        XCTAssertEqual(Adventurer.validate("COMMAND: Go\u{202E} no\u{200B}rth\u{0007}"), "Go north")
+        XCTAssertEqual(PlayerCommand.validate("COMMAND: Go\u{202E} no\u{200B}rth\u{0007}"), "Go north")
     }
 
     func testPromptBoundsUntrustedStoryText() {
@@ -901,7 +902,7 @@ final class SpectatorPerformanceTests: XCTestCase {
         for _ in 0..<20_000 {
             let a = Adventurer.pick(from: actions, tried: tried)
             tried[Adventurer.key(a, in: actions), default: 0] += 1
-            _ = Adventurer.validate("Thinking.\nCOMMAND: \(a)")
+            _ = PlayerCommand.validate("Thinking.\nCOMMAND: \(a)")
         }
         XCTAssertLessThan(CFAbsoluteTimeGetCurrent() - start, 3.0)
     }
@@ -1118,5 +1119,406 @@ final class SpectatorFrameTests: XCTestCase {
         engine.loadGame(fromSlot: slot)
         XCTAssertFalse(engine.isSpectating)
         XCTAssertFalse(engine.watchSession)
+    }
+}
+
+// MARK: - Model vs model (NovaAIKit sides)
+
+/// Stub for an overridden side: answers in order, records each request.
+@MainActor
+final class StubSideAI: SideAI {
+    var replies: [Result<String, Error>]
+    private(set) var requests: [(side: WatchSide, messages: [OllamaMessage])] = []
+
+    init(_ replies: [Result<String, Error>] = []) { self.replies = replies }
+
+    func complete(messages: [OllamaMessage], side: WatchSide, temperature: Double, maxTokens: Int) async throws -> SideReply {
+        requests.append((side, messages))
+        guard !replies.isEmpty else { throw LLMError.noBackendAvailable }
+        return SideReply(text: try replies.removeFirst().get(), backend: side.backend.rawValue, model: side.model, latency: 0.012)
+    }
+}
+
+/// A watch engine whose sides can be overridden.
+@MainActor
+private func duel(_ narrator: StoryNarrating, sides: StubSideAI, logger: PlayLogger? = nil, maxTurns: Int = 1,
+                  adventurer: WatchSide = WatchSide(), narratorSide: WatchSide = WatchSide()) -> GameEngine {
+    let engine = GameEngine(playLogger: logger, narrator: narrator, sideAI: sides)
+    engine.autoSaveEnabled = false
+    engine.streamingEnabled = false
+    engine.spectatorDelay = 0
+    engine.spectatorMaxTurns = maxTurns
+    engine.adventurerSide = adventurer
+    engine.narratorSide = narratorSide
+    return engine
+}
+
+private let claude = WatchSide(backend: .anthropic, model: "claude-sonnet-5-5")
+private let gpt = WatchSide(backend: .openAI, model: "gpt-5.1")
+
+final class ModelVsModelUnitTests: XCTestCase {
+
+    func testWatchSideDefaultsAndRoundTrip() throws {
+        XCTAssertEqual(WatchSide().backend, .auto)
+        XCTAssertFalse(WatchSide().isOverride)
+        XCTAssertTrue(claude.isOverride)
+        let suite = "com.jordankoch.Blompie.tests.sides.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        claude.save("k", defaults: defaults)
+        XCTAssertEqual(WatchSide.load("k", defaults: defaults), claude)
+        XCTAssertEqual(WatchSide.load("missing", defaults: defaults), WatchSide())
+    }
+
+    func testModelSourceLabels() {
+        let s = NarrationSource.model("Anthropic Claude claude-sonnet-5-5")
+        XCTAssertTrue(s.isAI)
+        XCTAssertEqual(s.playValue, "llm")
+        XCTAssertEqual(s.label, "AI via Anthropic Claude claude-sonnet-5-5")
+    }
+
+    func testReaskLimitIsTwo() {
+        XCTAssertEqual(GameEngine.maxReasks, 2)
+    }
+}
+
+final class ModelVsModelSecurityTests: XCTestCase {
+
+    func testAllowNovaOffKeepsNovaOutOfEveryPath() {
+        let (m, done) = AIFixtures.manager(StubTransport { _ in (200, Data()) }); defer { done() }
+        m.isOllamaAvailable = true; m.isNovaGatewayAvailable = true
+        XCTAssertTrue(m.autoChain().contains(.novaGateway))
+        m.allowNova = false
+        XCTAssertFalse(m.autoChain().contains(.novaGateway), "Auto skips Nova")
+        m.useNovaGateway = true
+        XCTAssertFalse(m.isBalancingEnabled, "Nova alone cannot enable the balanced pool")
+        m.saveConfiguration(); m.allowNova = true; m.loadConfiguration()
+        XCTAssertFalse(m.allowNova, "persisted")
+    }
+
+    func testExplicitNovaWithAllowNovaOffSendsNothing() async {
+        let stub = StubTransport { _ in (200, StubTransport.ollamaReply(AIFixtures.narration)) }
+        let (m, done) = AIFixtures.manager(stub); defer { done() }
+        m.activeBackend = .novaGateway
+        m.allowNova = false
+        _ = try? await m.narrate(messages: AIFixtures.messages, model: "m", temperature: 0.5, onChunk: nil)
+        XCTAssertTrue(stub.requests.isEmpty)
+    }
+
+    @MainActor
+    func testKitInstanceIsIsolatedUnderTests() {
+        XCTAssertFalse(BlompieAI.shared.hasAPIKey(for: .anthropic), "tests never see the player's Keychain")
+        XCTAssertEqual(BlompieAI.shared.configuration.appID, NovaAIConfiguration.normalizedID("Blompie"))
+    }
+
+    @MainActor
+    func testModelReplyEventIsBounded() async throws {
+        let sink = MemoryPlaySink()
+        let logger = PlayFixtures.logger(sink)
+        let engine = duel(StubNarrator(aiEnabled: false), sides: StubSideAI(), logger: logger)
+        engine.spectatorDelay = 5
+        engine.startSpectating()
+        defer { engine.stopSpectating(reason: nil) }
+        engine.recordModelReply(side: "adventurer", backend: "anthropic", model: String(repeating: "m", count: 500),
+                                text: String(repeating: "x", count: 5000), latency: 1.5, valid: false, attempt: 3,
+                                error: String(repeating: "e", count: 900))
+        _ = await logger.drainNow()
+        let s = try XCTUnwrap(sink.allSessions.first)
+        let e = try XCTUnwrap(sink.events[s.id]?.values.first { $0.kind == "model_reply" })
+        let d = PlayFixtures.json(e.detailJSON)
+        XCTAssertEqual((d["excerpt"] as? String)?.count, 120)
+        XCTAssertEqual((d["model"] as? String)?.count, 64)
+        XCTAssertEqual((d["error"] as? String)?.count, 160)
+        XCTAssertEqual(d["latency_ms"] as? Int, 1500)
+    }
+}
+
+@MainActor
+final class ModelVsModelRetryTests: XCTestCase {
+
+    func testInvalidCommandIsReaskedThenAccepted() async {
+        let sides = StubSideAI([.success("???"), .success("42"), .success("COMMAND: Talk to Orrin")])
+        let engine = duel(StubNarrator(replies: [StubNarrator.ok(AIFixtures.narration), StubNarrator.ok(AIFixtures.narration)]),
+                          sides: sides, adventurer: claude)
+        engine.startSpectating()
+        defer { engine.stopSpectating(reason: nil) }
+        await waitUntil { !engine.isSpectating }
+        XCTAssertEqual(sides.requests.count, 3, "asked once, re-asked twice")
+        XCTAssertTrue(sides.requests[1].messages.last?.content.contains("rejected") == true, "the error is fed back")
+        XCTAssertEqual(engine.actionHistory, ["Talk to Orrin"])
+        XCTAssertEqual(engine.adventurerFallbacks, 0)
+        XCTAssertEqual(engine.lastAdventurerSource, .model("Anthropic Claude claude-sonnet-5-5"))
+    }
+
+    func testThreeInvalidCommandsFallBackAndCount() async {
+        let sides = StubSideAI([.success("???"), .success("!!!"), .success("..."), .success("COMMAND: never asked")])
+        let engine = duel(StubNarrator(replies: [StubNarrator.ok(AIFixtures.narration)]), sides: sides, adventurer: claude)
+        engine.startSpectating()
+        defer { engine.stopSpectating(reason: nil) }
+        await waitUntil { !engine.isSpectating }
+        XCTAssertEqual(sides.requests.count, 3, "re-asked at most 2 times")
+        XCTAssertEqual(engine.actionHistory, ["Talk to Orrin"], "the heuristic played the turn")
+        XCTAssertEqual(engine.adventurerFallbacks, 1)
+        XCTAssertEqual(engine.lastAdventurerSource, .fallback)
+    }
+
+    func testInvalidNarrationIsReaskedThenScriptedNarratorAnswers() async {
+        // narrator side: opening ok, then three unusable replies for the turn
+        let sides = StubSideAI([.success(AIFixtures.narration), .success("ok"), .success("..."), .success("hm")])
+        let engine = duel(StubNarrator(aiEnabled: true), sides: sides, narratorSide: gpt)
+        engine.startSpectating()
+        defer { engine.stopSpectating(reason: nil) }
+        await waitUntil { !engine.isSpectating }
+        XCTAssertEqual(sides.requests.count, 4, "opening + 1 ask + 2 re-asks")
+        XCTAssertEqual(engine.lastNarrationSource, .fallback)
+        XCTAssertEqual(engine.fallbackTurns, 1)
+    }
+}
+
+final class ModelVsModelPerformanceTests: XCTestCase {
+
+    @MainActor
+    func testRecordingModelRepliesIsCheap() {
+        let logger = PlayFixtures.logger(MemoryPlaySink())
+        let engine = duel(StubNarrator(aiEnabled: false), sides: StubSideAI(), logger: logger)
+        engine.spectatorDelay = 60
+        engine.startSpectating()
+        defer { engine.stopSpectating(reason: nil) }
+        let start = CFAbsoluteTimeGetCurrent()
+        for i in 0..<300 {
+            engine.recordModelReply(side: "adventurer", backend: "ollama", model: "qwen3:8b",
+                                    text: "COMMAND: Go north \(i)", latency: 0.2, valid: true, attempt: 1)
+        }
+        XCTAssertLessThan(CFAbsoluteTimeGetCurrent() - start, 2.0)
+    }
+}
+
+@MainActor
+final class ModelVsModelIntegrationTests: XCTestCase {
+
+    func testEachSideUsesItsOwnBackendAndEveryReplyIsRecorded() async throws {
+        let sink = MemoryPlaySink()
+        let logger = PlayFixtures.logger(sink)
+        let sides = StubSideAI([.success(AIFixtures.narration),        // narrator (gpt): opening
+                                .success("COMMAND: Go north"),          // adventurer (claude)
+                                .success(AIFixtures.narration)])        // narrator (gpt): the turn
+        let narrator = StubNarrator(aiEnabled: true)                   // settings path: must not be used
+        let engine = duel(narrator, sides: sides, logger: logger, adventurer: claude, narratorSide: gpt)
+        engine.startSpectating()
+        defer { engine.stopSpectating(reason: nil) }
+        await waitUntil { !engine.isSpectating }
+        _ = await logger.drainNow()
+        XCTAssertEqual(narrator.calls, 0)
+        XCTAssertEqual(sides.requests.map(\.side.backend), [.openAI, .anthropic, .openAI])
+        XCTAssertEqual(engine.lastNarrationSource, .model("OpenAI (ChatGPT) gpt-5.1"))
+
+        let s = try XCTUnwrap(sink.allSessions.first { $0.player == PlayLogger.watchPlayer })
+        let summary = PlayFixtures.json(s.summaryJSON)
+        let matchup = try XCTUnwrap((summary["matchup"] as? [String: Any])?["sides"] as? [[String: Any]])
+        XCTAssertEqual(matchup.map { $0["backend"] as? String }, ["anthropic", "openai"])
+        XCTAssertEqual(matchup.map { $0["model"] as? String }, ["claude-sonnet-5-5", "gpt-5.1"])
+
+        let replies = (sink.events[s.id] ?? [:]).sorted { $0.key < $1.key }.map(\.value).filter { $0.kind == "model_reply" }
+            .map { PlayFixtures.json($0.detailJSON) }
+        XCTAssertEqual(replies.map { $0["side"] as? String }, ["narrator", "adventurer", "narrator"])
+        XCTAssertEqual(replies.map { $0["valid"] as? Bool }, [true, true, true])
+        XCTAssertEqual(replies[1]["backend"] as? String, "anthropic")
+        XCTAssertEqual(replies[1]["latency_ms"] as? Int, 12)
+        XCTAssertEqual(sink.eventKinds(s.id).filter { $0 == "turn" }.count, 1)
+    }
+}
+
+@MainActor
+final class ModelVsModelFunctionalTests: XCTestCase {
+
+    func testOverridesNeedTheKitPath() async {
+        // No sideAI (Nova API sessions): an override falls back to the AI Narrator settings.
+        let narrator = StubNarrator(replies: [StubNarrator.ok(AIFixtures.narration), StubNarrator.ok("COMMAND: Go north"),
+                                              StubNarrator.ok(AIFixtures.narration)])
+        let engine = spectator(narrator, maxTurns: 1)
+        engine.adventurerSide = claude
+        engine.narratorSide = gpt
+        engine.startSpectating()
+        defer { engine.stopSpectating(reason: nil) }
+        await waitUntil { !engine.isSpectating }
+        XCTAssertEqual(narrator.calls, 3)
+        XCTAssertEqual(engine.actionHistory, ["Go north"])
+    }
+
+    func testAfterTakeOverTheNarratorReturnsToSettings() async {
+        let sides = StubSideAI([.success(AIFixtures.narration)])        // narrator side: opening only
+        let narrator = StubNarrator(replies: [StubNarrator.ok(AIFixtures.narration)])
+        let engine = duel(narrator, sides: sides, maxTurns: 50, narratorSide: gpt)
+        engine.spectatorDelay = 5
+        engine.startSpectating()
+        await waitUntil { engine.lastNarrationSource != nil }
+        engine.takeOver()
+        engine.performAction("Go north")
+        await waitUntil { !engine.isLoading }
+        XCTAssertEqual(sides.requests.count, 1, "the player's turn is not narrated by the watch side")
+        XCTAssertEqual(narrator.calls, 1)
+        XCTAssertEqual(engine.lastNarrationSource, .ai(.ollama))
+    }
+
+    func testAIOffIgnoresOverrides() async {
+        let sides = StubSideAI([.success("COMMAND: Go north")])
+        let engine = duel(StubNarrator(aiEnabled: false), sides: sides, maxTurns: 2, adventurer: claude, narratorSide: gpt)
+        engine.startSpectating()
+        defer { engine.stopSpectating(reason: nil) }
+        await waitUntil { !engine.isSpectating }
+        XCTAssertTrue(sides.requests.isEmpty, "AI off: nothing is sent")
+        XCTAssertEqual(engine.lastAdventurerSource, .scripted)
+    }
+}
+
+@MainActor
+final class ModelVsModelFrameTests: XCTestCase {
+
+    func testSidesDefaultToSettingsAndAreNotPersistedByTests() {
+        let engine = makeEngine(StubNarrator(aiEnabled: false))
+        XCTAssertEqual(engine.adventurerSide, WatchSide())
+        XCTAssertEqual(engine.narratorSide, WatchSide())
+        let before = UserDefaults.standard.data(forKey: GameEngine.adventurerSideKey)
+        engine.adventurerSide = claude
+        XCTAssertEqual(UserDefaults.standard.data(forKey: GameEngine.adventurerSideKey), before)
+    }
+
+    func testMatchupLabelsAnOverriddenSide() {
+        let engine = duel(StubNarrator(aiEnabled: true), sides: StubSideAI(), adventurer: claude)
+        let sides = engine.watchMatchup()["sides"] as? [[String: Any]] ?? []
+        XCTAssertEqual(sides.first?["label"] as? String, "Anthropic Claude claude-sonnet-5-5")
+        XCTAssertEqual(sides.last?["kind"] as? String, "model")
+        XCTAssertNotEqual(sides.last?["backend"] as? String, "anthropic", "the narrator stays on settings")
+    }
+}
+
+// MARK: - id Software learnings (seeded RNG, one command type, personality as data, the record)
+
+final class IdLearningsUnitTests: XCTestCase {
+
+    func testSplitMix64IsDeterministicAndMatchesTheReference() {
+        var a = SplitMix64(seed: 42), b = SplitMix64(seed: 42)
+        XCTAssertEqual(a.next(), 13679457532755275413)
+        XCTAssertEqual(a.next(), 2949826092126892291)
+        _ = b.next(); _ = b.next()
+        XCTAssertEqual(a.next(), b.next())
+    }
+
+    func testBundledPersonalitiesAndFallback() {
+        XCTAssertEqual(AdventurerPersonality.all.map(\.id), ["balanced", "explorer", "collector", "chatterbox", "cautious"])
+        XCTAssertEqual(AdventurerPersonality.named("nope"), .fallback)
+        XCTAssertEqual(AdventurerPersonality.parse(nil), [.fallback])
+        XCTAssertEqual(AdventurerPersonality.named("balanced").priorities, AdventurerPersonality.fallback.priorities)
+    }
+
+    func testPersonalityDrivesTheHeuristicAndThePrompt() {
+        let actions = ["Look around", "Go north", "Talk to Pim", "Take the lamp"]
+        XCTAssertEqual(Adventurer.pick(from: actions, tried: [:], personality: .named("chatterbox")), "Talk to Pim")
+        XCTAssertEqual(Adventurer.pick(from: actions, tried: [:], personality: .named("explorer")), "Go north")
+        XCTAssertEqual(Adventurer.pick(from: actions, tried: [:], personality: .named("cautious")), "Look around")
+        let p = Adventurer.prompt(story: [], actions: actions, recent: [], personality: .named("collector"))
+        XCTAssertTrue(p[0].content.contains("magpie"))
+    }
+
+    func testCategories() {
+        XCTAssertEqual(["Take the key", "Ask Pim", "Climb up", "Examine door", "Dance"].map(Adventurer.category),
+                       ["take", "talk", "move", "look", "other"])
+    }
+}
+
+final class IdLearningsSecurityTests: XCTestCase {
+
+    func testHostilePersonalityTableIsFiltered() {
+        let json = """
+        {"personalities": [
+          {"id": "evil", "name": "x", "style": "\(String(repeating: "a", count: 400))", "priorities": ["take"], "temperature": 0.5},
+          {"id": "odd", "name": "x", "style": "ok", "priorities": ["rm -rf"], "temperature": 0.5},
+          {"id": "hot", "name": "x", "style": "ok", "priorities": ["take"], "temperature": 9},
+          {"id": "fine", "name": "Fine", "style": "ok", "priorities": ["talk"], "temperature": 0.5}
+        ]}
+        """
+        XCTAssertEqual(AdventurerPersonality.parse(Data(json.utf8)).map(\.id), ["balanced", "fine"])
+        XCTAssertEqual(AdventurerPersonality.parse(Data("not json".utf8)), [.fallback])
+    }
+
+    func testOneValidatorForEveryDriver() {
+        XCTAssertEqual(PlayerCommand.validate("Talk to Pim"), "Talk to Pim", "a suggested action passes unchanged")
+        XCTAssertEqual(PlayerCommand.validate(String(repeating: "a", count: 500))?.count, 500, "the API limit")
+        XCTAssertNil(PlayerCommand.validate("COMMAND: " + String(repeating: "a", count: 81),
+                                            maxChars: NarrationValidator.maxActionChars), "models get the action limit")
+        XCTAssertNil(PlayerCommand.validate("\u{0007}\u{202E}"))
+    }
+
+    @MainActor
+    func testEmptyOrJunkCommandsNeverStartATurn() {
+        let engine = makeEngine(StubNarrator(aiEnabled: false))
+        engine.performAction("   ")
+        engine.performAction("???")
+        XCTAssertTrue(engine.actionHistory.isEmpty)
+        XCTAssertFalse(engine.isLoading)
+    }
+}
+
+@MainActor
+final class IdLearningsFunctionalTests: XCTestCase {
+
+    func testSameSeedSameRandomModelSwitches() {
+        func run() -> [String] {
+            let engine = makeEngine(StubNarrator(aiEnabled: false))
+            engine.availableModels = ["a", "b", "c", "d", "e"]
+            engine.selectedModel = "a"
+            engine.startNewGame(seed: 7)
+            engine.randomModelMode = true
+            engine.actionsUntilModelSwitch = 1
+            var picked: [String] = []
+            for _ in 0..<6 { engine.performAction("Look around"); picked.append(engine.selectedModel) }
+            engine.randomModelMode = false
+            return picked
+        }
+        XCTAssertEqual(run(), run(), "gameplay randomness replays from the stored seed")
+    }
+
+    func testCosmeticRandomnessDoesNotMoveTheGameplayStream() {
+        var a = SplitMix64(seed: 1), b = SplitMix64(seed: 1)
+        _ = Double.random(in: 0...1)                      // cosmetic: system generator
+        XCTAssertEqual(a.next(), b.next())
+    }
+}
+
+@MainActor
+final class IdLearningsIntegrationTests: XCTestCase {
+
+    func testTheRecordCarriesSeedDriverPersonalityAndFallbacks() async throws {
+        let sink = MemoryPlaySink()
+        let logger = PlayFixtures.logger(sink)
+        // AI on, but the adventurer never gets an answer: the heuristic plays and a fallback event is written
+        let engine = spectator(StubNarrator(replies: [StubNarrator.ok(AIFixtures.narration)]), logger: logger, maxTurns: 1)
+        engine.adventurerPersonality = "chatterbox"
+        engine.startSpectating()
+        defer { engine.stopSpectating(reason: nil) }
+        await waitUntil { !engine.isSpectating }
+        _ = await logger.drainNow()
+        let s = try XCTUnwrap(sink.allSessions.first { $0.player == PlayLogger.watchPlayer })
+        let summary = PlayFixtures.json(s.summaryJSON)
+        XCTAssertEqual(summary["seed"] as? String, String(engine.gameSeed))
+        let sides = try XCTUnwrap((summary["matchup"] as? [String: Any])?["sides"] as? [[String: Any]])
+        XCTAssertEqual(sides.first?["personality"] as? String, "chatterbox")
+        let events = (sink.events[s.id] ?? [:]).sorted { $0.key < $1.key }.map(\.value)
+        XCTAssertTrue(events.contains { $0.kind == "fallback" && PlayFixtures.json($0.detailJSON)["side"] as? String == "adventurer" })
+        let turn = try XCTUnwrap(events.first { $0.kind == "turn" })
+        XCTAssertEqual(PlayFixtures.json(turn.detailJSON)["driver"] as? String, "heuristic")
+    }
+
+    func testHumanTurnsAreTaggedHuman() async throws {
+        let sink = MemoryPlaySink()
+        let logger = PlayFixtures.logger(sink)
+        let engine = makeEngine(StubNarrator(aiEnabled: false), logger: logger)
+        engine.startNewGame()
+        await settle(engine)
+        await act(engine, "Go north")
+        _ = await logger.drainNow()
+        let s = try XCTUnwrap(sink.allSessions.first)
+        let turn = try XCTUnwrap(sink.events[s.id]?.values.first { $0.kind == "turn" })
+        XCTAssertEqual(PlayFixtures.json(turn.detailJSON)["driver"] as? String, "human")
     }
 }

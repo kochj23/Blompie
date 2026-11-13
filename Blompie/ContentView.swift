@@ -9,7 +9,7 @@ import SwiftUI
 import AppKit
 
 struct ContentView: View {
-    @StateObject private var gameEngine = GameEngine(playLogger: PlayLogger.shared)
+    @StateObject private var gameEngine = GameEngine(playLogger: PlayLogger.shared, sideAI: BlompieAI.shared)
     @State private var showSaveDialog = false
     @State private var showLoadDialog = false
     @State private var showSettings = false
@@ -769,6 +769,9 @@ struct SettingsView: View {
 
                 // AI narrator: toggle, backend/model pickers, endpoints, keys, status, test
                 AINarratorSettingsSection(gameEngine: gameEngine)
+
+                // Watch AI Play: adventurer / narrator backend + model, Allow Nova, provider keys
+                WatchSidesSettingsSection(gameEngine: gameEngine)
 
                 // Font Size
                 SettingsSection(title: "Font Size", textColor: ModernColors.textPrimary) {

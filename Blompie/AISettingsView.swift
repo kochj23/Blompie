@@ -10,6 +10,7 @@
 //
 
 import SwiftUI
+import NovaAIKit
 
 // MARK: - Toolbar badge
 
@@ -81,6 +82,54 @@ struct SpectatorBar: View {
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(ModernColors.statusCritical.opacity(0.6), lineWidth: 1))
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
+    }
+}
+
+// MARK: - Watch AI Play: model vs model
+
+/// One backend + model per watch side (NovaAIKit pickers), the Allow Nova switch, and the kit's
+/// provider settings (keys and endpoints for Anthropic, Gemini, xAI, Mistral, DeepSeek, Meta, ...).
+struct WatchSidesSettingsSection: View {
+    @ObservedObject var gameEngine: GameEngine
+    @ObservedObject private var ai = AIBackendManager.shared
+    @ObservedObject private var kit = BlompieAI.shared
+    @State private var showProviders = false
+
+    var body: some View {
+        SettingsSection(title: "Watch AI Play: model vs model", textColor: ModernColors.textPrimary) {
+            VStack(alignment: .leading, spacing: 10) {
+                NovaAIModelPicker(ai: kit, title: "Adventurer", backend: $gameEngine.adventurerSide.backend,
+                                  model: $gameEngine.adventurerSide.model)
+                NovaAIModelPicker(ai: kit, title: "Narrator", backend: $gameEngine.narratorSide.backend,
+                                  model: $gameEngine.narratorSide.model)
+                Picker("Adventurer personality", selection: $gameEngine.adventurerPersonality) {
+                    ForEach(AdventurerPersonality.all) { Text($0.name).tag($0.id) }
+                }
+                .help(gameEngine.personality.style)
+                Text("\"Settings\" uses the AI Narrator above (local models by default). Another backend sends that side's requests to exactly that backend and model. Cloud backends need a key: Providers. An invalid reply is re-asked twice, then the built-in AI plays the turn.")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(ModernColors.textSecondary)
+                Toggle("Allow Nova", isOn: $ai.allowNova)
+                    .onChange(of: ai.allowNova) { _, on in
+                        ai.saveConfiguration()
+                        if kit.allowNova != on { kit.allowNova = on }
+                    }
+                Text("Off: nothing is ever sent to the Nova Gateway (narrator, balancer or watch sides).")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(ModernColors.textSecondary)
+                Button("Providers (keys and endpoints)…") { showProviders = true }
+            }
+        }
+        .onReceive(kit.$settings) { s in
+            if ai.allowNova != s.allowNova { ai.allowNova = s.allowNova; ai.saveConfiguration() }
+        }
+        .sheet(isPresented: $showProviders) {
+            VStack(alignment: .trailing) {
+                NovaAISettingsView(ai: kit, footer: "Used by Watch AI Play sides set to a specific backend.")
+                Button("Done") { showProviders = false }.padding()
+            }
+            .frame(minWidth: 560, minHeight: 600)
+        }
     }
 }
 

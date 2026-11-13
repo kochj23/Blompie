@@ -4,8 +4,8 @@
 ![Platform](https://img.shields.io/badge/platform-macOS%2014.0%2B-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Swift](https://img.shields.io/badge/Swift-SwiftUI-orange)
-![Version](https://img.shields.io/badge/version-1.4.0%20(build%208)-informational)
-![Tests](https://img.shields.io/badge/tests-385%20passing-brightgreen)
+![Version](https://img.shields.io/badge/version-1.5.0%20(build%209)-informational)
+![Tests](https://img.shields.io/badge/tests-413%20passing-brightgreen)
 
 **An AI-powered text adventure for macOS. Every playthrough is generated on the fly.**
 
@@ -15,7 +15,7 @@ The AI is optional. Switch it off, or let every backend go down, and a built-in 
 
 Blompie also exposes a token-protected loopback HTTP API so AI agents (Nova, Claude Code, scripts) can play adventures programmatically, and ships a WidgetKit widget that shows your current game at a glance.
 
-Written by Jordan Koch ([@kochj23](https://github.com/kochj23)). Current version **1.4.0 (build 8)**; release history in [CHANGELOG.md](CHANGELOG.md).
+Written by Jordan Koch ([@kochj23](https://github.com/kochj23)). Current version **1.5.0 (build 9)**; release history in [CHANGELOG.md](CHANGELOG.md).
 
 ![Blompie main window](Screenshots/main-window.png)
 
@@ -62,7 +62,7 @@ Written by Jordan Koch ([@kochj23](https://github.com/kochj23)). Current version
 | Tone | Serious, Balanced or Whimsical. |
 | Creativity | Temperature slider in Settings. |
 | Random model mode | Optionally switch to a random installed Ollama model every 3, 5, 10 or 15 actions; the switch is announced in the transcript. |
-| Watch AI Play (spectator mode) | Since 1.3.0: **Watch AI Play** starts a new adventure that an AI adventurer plays on its own. See [Spectator Mode](#spectator-mode-watch-ai-play). |
+| Watch AI Play (spectator mode) | Since 1.3.0: **Watch AI Play** starts a new adventure that an AI adventurer plays on its own. Since 1.5.0 the adventurer and the narrator can each run a different model (NovaAIKit). See [Spectator Mode](#spectator-mode-watch-ai-play). |
 | Statistics | Total actions, NPCs met, items, locations, achievements, current model, last tokens/sec, save count, message count. |
 
 ### Spectator Mode (Watch AI Play)
@@ -71,13 +71,17 @@ Click **Watch AI Play** in the toolbar to sit back: a new adventure starts and a
 
 | Part | Details |
 |---|---|
-| Adventurer | Asks the same AI backend as the narrator (`AIBackendManager`, any backend or Auto) for one `COMMAND:` line, given the recent story, the suggested actions and its own last commands. |
+| Adventurer | Asks for one `COMMAND:` line, given its personality, the recent story, the suggested actions and its own last commands. By default it uses the AI Narrator backend (`AIBackendManager`, any backend or Auto). |
+| Model vs model | Since 1.5.0, Settings > **Watch AI Play: model vs model** gives the adventurer and the narrator each their own backend + model through [NovaAIKit](https://github.com/kochj23/NovaAIKit) 1.1.0's per-request override and model picker (local: Ollama, MLX, TinyLLM, TinyChat, OpenWebUI, Nova Gateway; cloud: OpenRouter, OpenAI, Anthropic, Google Gemini, xAI Grok, Mistral, DeepSeek, Meta). **Settings** (the default) keeps a side on the AI Narrator settings, so local models are used unless you pick a cloud one. Cloud keys are stored in the Keychain. An overridden side gets exactly that backend + model, with no failover. The **Allow Nova** switch keeps every request off the Nova Gateway. |
+| Re-ask | An invalid or repeating command, or unusable narration from an overridden narrator, is re-asked up to 2 times with the reason. After that the built-in AI plays the turn (heuristic adventurer or scripted narrator) and `summary.fallbacks[side]` goes up. |
+| Personality | Bundled `AdventurerPersonalities.json` (Balanced, Explorer, Collector, Chatterbox, Cautious): a style sentence for the model prompt, a category order for the heuristic and a temperature. A missing or broken file falls back to Balanced. |
 | Fallback | When AI is off, the call fails, the reply is unusable or the AI keeps repeating itself, a heuristic picks the suggested action least tried in the current scene (take > talk > move > other > look), so it never stalls. In the scripted world it visits every place and collects every item. |
-| Validation | Every command is validated like player input: the `COMMAND:` line only, markdown and control/bidi characters stripped, needs a letter, 1-80 chars. |
+| Validation | One validator for every driver (`PlayerCommand.validate`: buttons, typed and API input, the AI adventurer, the heuristic): the `COMMAND:` line only, markdown and control/bidi characters stripped, needs a letter; 1-80 chars for the adventurer, 1-500 for the player. Each played command is recorded with its `driver` (`human`, `model`, `heuristic`). |
 | SPECTATING bar | Red indicator, turn count, who chose the last command (AI via backend or heuristic), a delay slider (0.5-10 s between turns, default 3 s), **Pause/Resume** and **Take Over**. |
 | Take over | **Take Over**, or clicking / pressing the number of any suggested action, stops the adventurer; you continue the same story. New Game or Load also stop it. |
 | Stops on its own | When the narration says the story ended (`THE END` / game over), after 60 adventurer turns, or when the last 8 commands contain only 1-2 distinct ones (loop). A transcript line says why. |
 | Recorded as AI vs AI | Since 1.4.0 (watch contract v2) a watch game is its own play session with `player` `AI vs AI` (never a human, excluded from human stats), `summary.spectator = true`, `summary.matchup` (sides `adventurer` and `narrator`: `kind` `model` with backend id, model and label, or `engine` for the heuristic / scripted narrator) and `summary.fallbacks` (`{"adventurer": n, "narrator": n}`). Events are recorded as usual, and Nova journals it as an "AI vs AI" entry. Outcome: `completed` (story ended), `turn_limit`, `stalled` (loop) or `taken_over`. Starting a watch closes your own open session as `completed`. Watching does not overwrite your autosave or unlock achievements. |
+| The record | Since 1.5.0 every model reply in a watch game is a `model_reply` event (side, backend, model, a 120-char excerpt, `latency_ms`, `valid`, `attempt`, error), and every built-in AI turn is a `fallback` event. Journals and replays read these events and never call a model again. The summary also carries the adventurer `personality` and the gameplay `seed` (seeded SplitMix64 PRNG for gameplay randomness such as random model switching; cosmetic randomness stays separate). |
 | Take over (recording) | The watch session ends as `taken_over` with everything so far, and a normal session (`player` `default`, `started_from` `takeover`) starts from that point. After a watch that stopped on its own, your next action starts a normal session (`started_from` `after_watch`). |
 
 ```mermaid
@@ -88,12 +92,17 @@ flowchart TD
     Q -- no --> P{Paused, or narrator busy?}
     P -- yes --> P
     P -- no --> A{AI narrator on?}
-    A -- yes --> B["AIBackendManager.narrate<br/>reply: COMMAND line"]
-    B -- "valid, not repeating" --> C[Command]
-    B -- "error / invalid / repeat" --> H
+    A -- yes --> S{"Adventurer side"}
+    S -- Settings --> B["AIBackendManager.narrate<br/>reply: COMMAND line"]
+    S -- "backend + model" --> K["NovaAIKit request override<br/>exactly that model"]
+    K --> B2{"Valid, not repeating?"}
+    B --> B2
+    B2 -- yes --> C[Command]
+    B2 -- "no: re-ask with reason, up to 2 times" --> S
+    B2 -- "still invalid or error" --> H
     A -- no --> H["Heuristic: least-tried action<br/>in this scene"]
     H --> C
-    C --> V["Adventurer.validate (like player input)"]
+    C --> V["PlayerCommand.validate (every driver)"]
     V --> T["performAction (narrator answers)"]
     T --> D[Wait for the delay] --> Q
     U[Take Over / pick an action] --> TO["Watch session ends: taken_over<br/>normal session starts"] --> X
@@ -217,6 +226,7 @@ graph TD
         CV --> MD[ModernDesign<br/>ModernColors, GlassmorphicBackground]
         CV --> AIS[AISettingsView<br/>status badge, AI Narrator settings]
         GE --> ABM[AIBackendManager<br/>+Balancer, +Generation]
+        GE --> WS["WatchSides<br/>NovaAIKit per-side override"]
         GE --> SN[ScriptedNarrator<br/>NarrationValidator]
         GES --> ABM
         ABM --> OS[OllamaService<br/>streaming]
@@ -261,7 +271,7 @@ graph TD
     WSDM --> AG
 
     subgraph Tests["BlompieTests (target: unit tests)"]
-        T[385 XCTest cases]
+        T[413 XCTest cases]
     end
     T -.-> App
 ```
@@ -272,8 +282,10 @@ graph TD
 |---|---|
 | `Blompie/BlompieApp.swift` | App entry point; starts the Nova API server; font-size menu commands |
 | `Blompie/GameEngine.swift` | Game state, system prompt, response parsing, world tracking, achievements, undo, save/load, export, settings; asks the narrator, falls back to the scripted narrator; spectator loop (Watch AI Play) |
-| `Blompie/Narration.swift` | `NarrationSource` (llm / fallback / scripted), `NarrationValidator` (output checks), `ScriptedNarrator` (rule-based world), `Adventurer` (spectator prompt, command validation, heuristic pick, loop/end detection) |
-| `Blompie/AISettingsView.swift` | Toolbar narrator status badge; SPECTATING bar; Settings > AI Narrator (toggle, backend/model pickers, endpoints, keys, status, Test connection) |
+| `Blompie/Narration.swift` | `NarrationSource` (llm / fallback / scripted / per-side model), `NarrationValidator` (output checks), `ScriptedNarrator` (rule-based world), `Adventurer` (spectator prompt, heuristic pick, loop/end detection), `PlayerCommand` + `CommandDriver` (one validator for every driver), `AdventurerPersonality`, `SplitMix64` |
+| `Blompie/Services/WatchSides.swift` | Model vs model: `BlompieAI` (the app's NovaAIKit instance), `WatchSide` (backend + model per side), `SideAI` (per-request override) |
+| `Blompie/AdventurerPersonalities.json` | Adventurer personality table |
+| `Blompie/AISettingsView.swift` | Toolbar narrator status badge; SPECTATING bar; Settings > AI Narrator (toggle, backend/model pickers, endpoints, keys, status, Test connection, Allow Nova); Settings > Watch AI Play: model vs model (NovaAIKit pickers per side, personality) |
 | `Blompie/ContentView.swift` | Main window, sidebar, save/load/settings/stats/achievements sheets |
 | `Blompie/OllamaService.swift` | Ollama `/api/tags` and `/api/chat` (streaming + non-streaming), tokens/sec |
 | `Blompie/NovaAPIServer.swift` | Loopback HTTP API, Keychain token, request gate |
@@ -491,7 +503,7 @@ Apple Silicon with 16 GB RAM is recommended for larger local models.
 
 ### From DMG
 
-1. Download `Blompie-v1.4.0-build8.dmg` (current version **1.4.0, build 8**) from [Releases](https://github.com/kochj23/Blompie/releases).
+1. Download `Blompie-v1.5.0-build9.dmg` (current version **1.5.0, build 9**) from [Releases](https://github.com/kochj23/Blompie/releases).
 2. Open the DMG and drag **Blompie** onto the `Applications` shortcut.
 3. Optional, for the AI narrator: start any supported backend, for example Ollama:
 
@@ -531,18 +543,18 @@ Or open `Blompie.xcodeproj` in Xcode and press Cmd+R. The scheme builds the app 
 xcodebuild -project Blompie.xcodeproj -scheme Blompie test
 ```
 
-The suite contains **385 XCTest cases, all passing**, in 7 categories. Network-dependent logic is tested without live backends: pure functions for pool parsing, balancing and failover, and an injected `HTTPTransport` stub plus a stub narrator for the AI layer (`AIParityTests.swift`).
+The suite contains **413 XCTest cases, all passing**, in 7 categories. Network-dependent logic is tested without live backends: pure functions for pool parsing, balancing and failover, and an injected `HTTPTransport` stub plus a stub narrator for the AI layer (`AIParityTests.swift`).
 
 | Category | Classes (test count) | Total | Covers |
 |---|---|---|---|
-| Security | SourceCodeSecurityTests (8), NovaAPIGateTests (10), InputSanitizationTests (3), AIOutputValidationSecurityTests (6), ComprehensiveSecurityTests (9), PlayLoggerSecurityTests (8), AIParitySecurityTests (10), SpectatorSecurityTests (3) | 57 | No hardcoded secrets, API gate (browser/Host/token/size), input limits, Keychain round-trip and UserDefaults migration, keys never over http, local backends never get a key, OpenRouter attribution, one-time AIStudio key migration, AI off sends nothing, output validation (think blocks, template tokens, prompt echo, control chars); play logging security; spectator command sanitizing, bounded prompt, watch game recorded as `AI vs AI` with `summary.spectator`, never as the human |
-| Performance | PerformanceTests (8), PlayLoggerPerformanceTests (2), AIParityPerformanceTests (5), SpectatorPerformanceTests (1) | 16 | Gate throughput, constant-time compare, tag/model parsing, pool de-dup, balancer selection, validator and scripted-narrator throughput, fail-fast when nothing is reachable |
-| Retry | RetryTests (9), PlayLoggerRetryTests (6), AIParityRetryTests (8), SpectatorRetryTests (2) | 25 | `LoadBalancer.firstSuccess` failover; 503 retried, 4xx not retried, retries bounded, Auto fails over in the fixed order, invalid output fails over, explicit backend does not fail over, timeouts applied, balancer failure falls through to the chain; play-log backoff; failed or invalid AI adventurer falls back to the heuristic |
-| Unit | ComprehensiveUnitTests (30), AIBackendEnumTests (6), AIErrorTests (6), ImageStyleTests (3), ImageGenerationErrorTests (6), GameModelTests (14), ColorThemeTests (16), OllamaServiceTests (17), LoadBalancerTests (20), WidgetDataTests (9), AIBackendManagerTests (5), PlayLoggerUnitTests (10), AIParityUnitTests (10), SpectatorUnitTests (5) | 157 | Models, enums (incl. legacy backend-value migration), errors, themes, Ollama contracts, registry and balancer, endpoints and model names per backend, request/response helpers, URL policy, status text, widget data, play-log JSON |
-| Integration | ComprehensiveIntegrationTests (9), NovaAPIServerTests (7), PlayLoggerIntegrationTests (3), AIParityIntegrationTests (4), SpectatorIntegrationTests (3) | 26 | Component wiring, API server, GameEngine + narrator + stub transport end to end (configured Ollama URL and model), play history `source` for llm / fallback / scripted turns; AI adventurer command reaches the narrator; the player's session is closed and gets no watch events; watch summary matchup and fallbacks; take-over ends the watch as `taken_over` and starts a human session |
-| Functional | ComprehensiveFunctionalTests (14), GameEngineTests (12), ResponseParsingTests (26), PlayLoggerFunctionalTests (6), AIParityFunctionalTests (8), SpectatorFunctionalTests (8) | 74 | Engine behavior, parsing, logging; a failed AI call never loses a turn; AI off is fully playable (items, NPCs, places, achievements); scripted world connected and deterministic; model actions sanitized; prompt echo rejected; spectator explores the whole scripted world, stops at the turn cap or story end, pause/resume, take-over, no achievements; next action after a watch starts a human session; matchup names the model |
-| Frame | ComprehensiveFrameTests (18), PlayLoggerFrameTests (4), AIParityFrameTests (5), SpectatorFrameTests (3) | 30 | Singletons and defaults (AI on, Auto, retry/timeouts), shared manager isolated from real settings/Keychain under XCTest, settings round-trip with stable ids, OpenRouter constants; spectator UI state (defaults, SPECTATING on start, cleared by New Game / Load) |
-| **Total** | 45 classes | **385** | |
+| Security | SourceCodeSecurityTests (8), NovaAPIGateTests (10), InputSanitizationTests (3), AIOutputValidationSecurityTests (6), ComprehensiveSecurityTests (9), PlayLoggerSecurityTests (8), AIParitySecurityTests (10), SpectatorSecurityTests (3), ModelVsModelSecurityTests (4), IdLearningsSecurityTests (3) | 64 | No hardcoded secrets, API gate (browser/Host/token/size), input limits, Keychain round-trip and UserDefaults migration, keys never over http, local backends never get a key, OpenRouter attribution, one-time AIStudio key migration, AI off sends nothing, output validation (think blocks, template tokens, prompt echo, control chars); play logging security; spectator command sanitizing, bounded prompt, watch game recorded as `AI vs AI` with `summary.spectator`, never as the human; model vs model: Allow Nova off keeps Nova out of every path (even when picked explicitly), the kit instance is isolated under XCTest, `model_reply` events are bounded; one validator for every driver, junk commands never start a turn, hostile personality tables filtered |
+| Performance | PerformanceTests (8), PlayLoggerPerformanceTests (2), AIParityPerformanceTests (5), SpectatorPerformanceTests (1), ModelVsModelPerformanceTests (1) | 17 | Gate throughput, constant-time compare, tag/model parsing, pool de-dup, balancer selection, validator and scripted-narrator throughput, fail-fast when nothing is reachable; recording model replies is cheap |
+| Retry | RetryTests (9), PlayLoggerRetryTests (6), AIParityRetryTests (8), SpectatorRetryTests (2), ModelVsModelRetryTests (3) | 28 | `LoadBalancer.firstSuccess` failover; 503 retried, 4xx not retried, retries bounded, Auto fails over in the fixed order, invalid output fails over, explicit backend does not fail over, timeouts applied, balancer failure falls through to the chain; play-log backoff; failed or invalid AI adventurer falls back to the heuristic; an invalid model command is re-asked, three invalid ones fall back to the heuristic and are counted; invalid narration is re-asked, then the scripted narrator answers |
+| Unit | ComprehensiveUnitTests (30), AIBackendEnumTests (6), AIErrorTests (6), ImageStyleTests (3), ImageGenerationErrorTests (6), GameModelTests (14), ColorThemeTests (16), OllamaServiceTests (17), LoadBalancerTests (20), WidgetDataTests (9), AIBackendManagerTests (5), PlayLoggerUnitTests (10), AIParityUnitTests (10), SpectatorUnitTests (5), ModelVsModelUnitTests (3), IdLearningsUnitTests (4) | 164 | Models, enums (incl. legacy backend-value migration), errors, themes, Ollama contracts, registry and balancer, endpoints and model names per backend, request/response helpers, URL policy, status text, widget data, play-log JSON; watch side defaults and round trip, re-ask limit 2, model source labels; SplitMix64 reference vector, bundled personalities and fallback, personality drives heuristic and prompt |
+| Integration | ComprehensiveIntegrationTests (9), NovaAPIServerTests (7), PlayLoggerIntegrationTests (3), AIParityIntegrationTests (4), SpectatorIntegrationTests (3), ModelVsModelIntegrationTests (1), IdLearningsIntegrationTests (2) | 29 | Component wiring, API server, GameEngine + narrator + stub transport end to end (configured Ollama URL and model), play history `source` for llm / fallback / scripted turns; AI adventurer command reaches the narrator; the player's session is closed and gets no watch events; watch summary matchup and fallbacks; take-over ends the watch as `taken_over` and starts a human session; each side uses its own backend + model and every reply is recorded; the record carries seed, driver, personality and fallbacks; human turns tagged `human` |
+| Functional | ComprehensiveFunctionalTests (14), GameEngineTests (12), ResponseParsingTests (26), PlayLoggerFunctionalTests (6), AIParityFunctionalTests (8), SpectatorFunctionalTests (8), ModelVsModelFunctionalTests (3), IdLearningsFunctionalTests (2) | 79 | Engine behavior, parsing, logging; a failed AI call never loses a turn; AI off is fully playable (items, NPCs, places, achievements); scripted world connected and deterministic; model actions sanitized; prompt echo rejected; spectator explores the whole scripted world, stops at the turn cap or story end, pause/resume, take-over, no achievements; next action after a watch starts a human session; matchup names the model; AI off ignores overrides, overrides go through the kit path, after Take Over the narrator returns to Settings; same seed gives the same random model switches, cosmetic randomness does not move the gameplay stream |
+| Frame | ComprehensiveFrameTests (18), PlayLoggerFrameTests (4), AIParityFrameTests (5), SpectatorFrameTests (3), ModelVsModelFrameTests (2) | 32 | Singletons and defaults (AI on, Auto, retry/timeouts), shared manager isolated from real settings/Keychain under XCTest, settings round-trip with stable ids, OpenRouter constants; spectator UI state (defaults, SPECTATING on start, cleared by New Game / Load); sides default to Settings and are not persisted by tests, matchup labels an overridden side |
+| **Total** | 56 classes | **413** | |
 
 Test sources live in `BlompieTests/`.
 
@@ -602,4 +614,4 @@ MIT License. Copyright (c) 2024 Jordan Koch. See [LICENSE](LICENSE) for the full
 
 ---
 
-Written by Jordan Koch ([@kochj23](https://github.com/kochj23)). Current version **1.4.0 (build 8)**; release history in [CHANGELOG.md](CHANGELOG.md).
+Written by Jordan Koch ([@kochj23](https://github.com/kochj23)). Current version **1.5.0 (build 9)**; release history in [CHANGELOG.md](CHANGELOG.md).

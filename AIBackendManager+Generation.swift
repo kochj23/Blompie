@@ -89,6 +89,7 @@ extension AIBackendManager: StoryNarrating {
     /// Backends to try for one turn: the selected one, or (Auto) every reachable
     /// backend in the fixed order. Auto re-probes when availability is stale.
     func narrationChain() async -> [LLMBackendType] {
+        if activeBackend == .novaGateway && !allowNova { return [] }   // Allow Nova off: nothing to Nova
         if activeBackend != .auto { return [activeBackend] }
         let stale = lastRefreshDate.map { Date().timeIntervalSince($0) > availabilityMaxAge } ?? true
         if stale { await refreshAllBackends() }

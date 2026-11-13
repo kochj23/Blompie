@@ -23,11 +23,13 @@ enum NarrationSource: Equatable, Sendable {
     case fallback
     /// AI is switched off: the scripted narrator runs the game.
     case scripted
+    /// A watch side's own backend + model (NovaAIKit per-request override), e.g. "Anthropic claude-…".
+    case model(String)
 
     /// Value written to the Nova Games DB `detail.source` field.
     var playValue: String {
         switch self {
-        case .ai: return "llm"
+        case .ai, .model: return "llm"
         case .fallback: return "fallback"
         case .scripted: return "scripted"
         }
@@ -37,14 +39,17 @@ enum NarrationSource: Equatable, Sendable {
     var label: String {
         switch self {
         case .ai(let backend): return "AI via \(backend.shortName)"
+        case .model(let name): return "AI via \(name)"
         case .fallback: return "Scripted (AI away)"
         case .scripted: return "Scripted (AI off)"
         }
     }
 
     var isAI: Bool {
-        if case .ai = self { return true }
-        return false
+        switch self {
+        case .ai, .model: return true
+        case .fallback, .scripted: return false
+        }
     }
 }
 
@@ -376,28 +381,15 @@ enum Adventurer {
     Reply with exactly one line: COMMAND: <a short command, 2-6 words>
     """
 
-    /// Prompt for the AI adventurer: recent story, suggested actions, its own recent commands.
-    static func prompt(story: [String], actions: [String], recent: [String]) -> [OllamaMessage] {
+    /// Prompt for the AI adventurer: its personality, recent story, suggested actions, its own recent commands.
+    static func prompt(story: [String], actions: [String], recent: [String],
+                       personality: AdventurerPersonality = .fallback) -> [OllamaMessage] {
         let scene = story.map { String($0.prefix(400)) }.filter { !$0.isEmpty }.joined(separator: "\n")
         var user = "Story so far:\n\(scene)\n\nSuggested actions: \(actions.joined(separator: " | "))"
         if !recent.isEmpty { user += "\nYour recent commands: \(recent.suffix(5).joined(separator: " | "))" }
         user += "\nWhat is your next command?"
-        return [OllamaMessage(role: "system", content: systemPrompt), OllamaMessage(role: "user", content: user)]
-    }
-
-    /// Validate a command like player input: the `COMMAND:` line (or first line), markdown and control /
-    /// format characters stripped, needs a letter, 1...80 chars. nil = rejected.
-    static func validate(_ raw: String) -> String? {
-        let lines = raw.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "`", with: "")
-            .components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-        var line = lines.first { $0.uppercased().hasPrefix("COMMAND:") } ?? lines.first ?? ""
-        if line.uppercased().hasPrefix("COMMAND:") { line = String(line.dropFirst(8)) }
-        line = String(String.UnicodeScalarView(line.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }))
-        line = line.trimmingCharacters(in: CharacterSet(charactersIn: ">\"'.").union(.whitespaces))
-        guard line.contains(where: \.isLetter) else { return nil }
-        return NarrationValidator.sanitizeActions([line]).first
+        return [OllamaMessage(role: "system", content: systemPrompt + "\nPersonality: " + personality.style),
+                OllamaMessage(role: "user", content: user)]
     }
 
     /// Key for "tried" counts: the command within its set of suggested actions (a stand-in for
@@ -406,15 +398,22 @@ enum Adventurer {
         action.lowercased() + "@" + actions.map { $0.lowercased() }.sorted().joined(separator: "|")
     }
 
-    /// Heuristic adventurer: the action least tried in this scene, preferring take > talk > move > other > look.
-    static func pick(from actions: [String], tried: [String: Int]) -> String {
+    /// What kind of action a suggestion is: take, talk, move, look or other.
+    static func category(_ action: String) -> String {
+        let a = action.lowercased()
+        if ["take", "pick", "grab", "get "].contains(where: { a.hasPrefix($0) }) { return "take" }
+        if ["talk", "ask", "trade", "greet"].contains(where: { a.hasPrefix($0) }) { return "talk" }
+        if ["go ", "enter", "climb", "follow", "open"].contains(where: { a.hasPrefix($0) }) { return "move" }
+        if ["look", "examine"].contains(where: { a.hasPrefix($0) }) { return "look" }
+        return "other"
+    }
+
+    /// Heuristic adventurer: the action least tried in this scene; ties go by the personality's
+    /// category order (default: take > talk > move > other > look), then list order.
+    static func pick(from actions: [String], tried: [String: Int],
+                     personality: AdventurerPersonality = .fallback) -> String {
         func rank(_ action: String) -> Int {
-            let a = action.lowercased()
-            if ["take", "pick", "grab", "get "].contains(where: { a.hasPrefix($0) }) { return 0 }
-            if ["talk", "ask", "trade", "greet"].contains(where: { a.hasPrefix($0) }) { return 1 }
-            if ["go ", "enter", "climb", "follow", "open"].contains(where: { a.hasPrefix($0) }) { return 2 }
-            if ["look", "examine"].contains(where: { a.hasPrefix($0) }) { return 4 }
-            return 3
+            personality.priorities.firstIndex(of: category(action)) ?? personality.priorities.count
         }
         let options = actions.isEmpty ? ["Look around"] : actions
         return options.enumerated().min { x, y in
@@ -431,5 +430,90 @@ enum Adventurer {
     /// True when the narration says the story is over.
     static func storyEnded(_ text: String) -> Bool {
         text.contains("THE END") || text.lowercased().contains("game over")
+    }
+}
+
+// MARK: - One command type for every driver
+
+/// Who issued a command. After Quake 3's BotInputToUserCommand: humans, the built-in AI and any model
+/// all produce the same command through the same validator; a fallback only swaps the driver.
+enum CommandDriver: String, Sendable {
+    case human, model, heuristic
+}
+
+/// The single command validator for every driver (buttons, typed / API input, AI adventurer, heuristic).
+enum PlayerCommand {
+    /// Longest command accepted (the Nova API limit).
+    static let maxChars = 500
+
+    /// The `COMMAND:` line (or first line), markdown and control / format characters stripped, a leading
+    /// `>` and surrounding quotes or a trailing period removed; needs a letter, 1...`maxChars` chars
+    /// (model drivers pass the suggested-action limit, 80). nil = rejected.
+    static func validate(_ raw: String, maxChars: Int = PlayerCommand.maxChars) -> String? {
+        let lines = raw.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "`", with: "")
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        var line = lines.first { $0.uppercased().hasPrefix("COMMAND:") } ?? lines.first ?? ""
+        if line.uppercased().hasPrefix("COMMAND:") { line = String(line.dropFirst(8)) }
+        line = String(String.UnicodeScalarView(line.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }))
+        line = line.trimmingCharacters(in: CharacterSet(charactersIn: ">\"'.").union(.whitespaces))
+        guard line.contains(where: \.isLetter), line.count <= maxChars else { return nil }
+        return line
+    }
+}
+
+// MARK: - Personality as data
+
+/// The adventurer's character, loaded from the bundled `AdventurerPersonalities.json`. After Quake 3's
+/// bot characteristic files (chars.h / BotLoadCachedCharacter): one table drives both the built-in
+/// heuristic (category order) and the LLM prompt (style); a missing or broken file falls back to the default.
+struct AdventurerPersonality: Codable, Equatable, Sendable, Identifiable {
+    var id: String
+    var name: String
+    /// One sentence added to the AI adventurer's system prompt.
+    var style: String
+    /// Heuristic tie-break order over take / talk / move / other / look.
+    var priorities: [String]
+    /// Sampling temperature for the AI adventurer.
+    var temperature: Double
+
+    static let fallback = AdventurerPersonality(
+        id: "balanced", name: "Balanced",
+        style: "Curious and practical: pick up what looks useful, talk to whoever is around, then move on.",
+        priorities: ["take", "talk", "move", "other", "look"], temperature: 0.8)
+
+    private struct Table: Codable { var personalities: [AdventurerPersonality] }
+
+    /// Parse a personality table; invalid entries are dropped, the default is always present.
+    static func parse(_ data: Data?) -> [AdventurerPersonality] {
+        let decoded = data.flatMap { try? JSONDecoder().decode(Table.self, from: $0) }?.personalities ?? []
+        let valid = decoded.filter { p in
+            !p.id.isEmpty && !p.style.isEmpty && p.style.count <= 300 && (0...2).contains(p.temperature)
+                && !p.priorities.isEmpty && Set(p.priorities).isSubset(of: ["take", "talk", "move", "other", "look"])
+        }
+        return valid.contains { $0.id == fallback.id } ? valid : [fallback] + valid
+    }
+
+    static let all: [AdventurerPersonality] =
+        parse(Bundle.main.url(forResource: "AdventurerPersonalities", withExtension: "json").flatMap { try? Data(contentsOf: $0) })
+
+    static func named(_ id: String) -> AdventurerPersonality { all.first { $0.id == id } ?? fallback }
+}
+
+// MARK: - Gameplay RNG
+
+/// Seeded gameplay PRNG (SplitMix64, written for Blompie). After Doom's P_Random / M_Random split: gameplay
+/// randomness (random model switching) draws from this seeded generator, and the seed is stored in the play
+/// summary; cosmetic randomness (the animated background) stays on the system generator.
+struct SplitMix64: RandomNumberGenerator, Sendable {
+    private(set) var state: UInt64
+    init(seed: UInt64) { state = seed }
+    mutating func next() -> UInt64 {
+        state &+= 0x9E3779B97F4A7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
+        z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
+        return z ^ (z >> 31)
     }
 }

@@ -86,7 +86,7 @@ extension AIBackendManager {
         if enableAllFrontierModels {
             frontier = ModelRegistry.frontierModels(from: openRouterModels, baseURL: baseURL(for: .openRouter))
         }
-        let nova = useNovaGateway ? ModelRegistry.novaGatewayModel(url: baseURL(for: .novaGateway)) : nil
+        let nova = useNovaGateway && allowNova ? ModelRegistry.novaGatewayModel(url: baseURL(for: .novaGateway)) : nil
 
         let pool = ModelRegistry.assemblePool(
             ollama: ollama,
@@ -95,7 +95,7 @@ extension AIBackendManager {
             novaGateway: nova,
             useAllLocalModels: useAllLocalModels,
             enableAllFrontierModels: enableAllFrontierModels,
-            useNovaGateway: useNovaGateway
+            useNovaGateway: useNovaGateway && allowNova
         )
         await MainActor.run { self.discoveredModels = pool }
         return pool

@@ -1,0 +1,39 @@
+{
+  "personalities": [
+    {
+      "id": "balanced",
+      "name": "Balanced",
+      "style": "Curious and practical: pick up what looks useful, talk to whoever is around, then move on.",
+      "priorities": ["take", "talk", "move", "other", "look"],
+      "temperature": 0.8
+    },
+    {
+      "id": "explorer",
+      "name": "Explorer",
+      "style": "A restless explorer: always heads for the next unseen place and rarely lingers.",
+      "priorities": ["move", "take", "talk", "other", "look"],
+      "temperature": 0.9
+    },
+    {
+      "id": "collector",
+      "name": "Collector",
+      "style": "A magpie: grabs every object, trades when possible, and only leaves once the pockets are full.",
+      "priorities": ["take", "other", "talk", "move", "look"],
+      "temperature": 0.7
+    },
+    {
+      "id": "chatterbox",
+      "name": "Chatterbox",
+      "style": "Sociable to a fault: talks to, asks and trades with every character before doing anything else.",
+      "priorities": ["talk", "take", "other", "move", "look"],
+      "temperature": 1.0
+    },
+    {
+      "id": "cautious",
+      "name": "Cautious",
+      "style": "Careful and thorough: examines things and asks questions before touching or entering anything.",
+      "priorities": ["look", "talk", "take", "move", "other"],
+      "temperature": 0.5
+    }
+  ]
+}

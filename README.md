@@ -21,6 +21,17 @@ Written by Jordan Koch ([@kochj23](https://github.com/kochj23)). Current version
 
 ---
 
+<!-- watch-it-play:start -->
+## Watch it play itself
+
+AI versus AI, narrated by Nova (an AI voice). Two local models play each other; the narration is written from the game's own record of what happened.
+
+| **Highlights:** [The door opened on turn 29. The price: a memory](https://www.youtube.com/watch?v=eF1JsnNwY8w) | **Full game:** [Two AIs played 60 turns of a text adventure](https://www.youtube.com/watch?v=4HcMhj7xWAU) |
+|---|---|
+| <a href="https://www.youtube.com/watch?v=eF1JsnNwY8w"><img src="https://img.youtube.com/vi/eF1JsnNwY8w/hqdefault.jpg" width="360" alt="The door opened on turn 29. The price: a memory"></a> | <a href="https://www.youtube.com/watch?v=4HcMhj7xWAU"><img src="https://img.youtube.com/vi/4HcMhj7xWAU/hqdefault.jpg" width="360" alt="Two AIs played 60 turns of a text adventure"></a> |
+
+<!-- watch-it-play:end -->
+
 ## Table of Contents
 
 - [Features](#features)
